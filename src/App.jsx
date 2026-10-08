@@ -1020,7 +1020,7 @@ function TransactionForm({ modal, onClose, data, addItem, updateItem, addBank, m
   const [category, setCategory] = useState(editing?.category || cats[0] || "");
   const [bank, setBank] = useState(editing?.bank || (data.banks || [])[0] || "");
   const [amount, setAmount] = useState(editing?.amount ?? "");
-  const [status, setStatus] = useState(editing?.status || "pending");
+  const [status, setStatus] = useState(editing ? (editing.status || (direction === "in" ? "received" : "paid")) : "pending");
   const save = () => {
     if (!description.trim() || !amount) return; addBank(bank);
     const p = { profileKey, date, description: description.trim(), category, bank: bank.trim() || "Carteira", direction, amount: Number(amount), status };
@@ -1029,7 +1029,7 @@ function TransactionForm({ modal, onClose, data, addItem, updateItem, addBank, m
   };
   return (
     <Modal title={editing ? "Editar Lançamento" : "Novo Lançamento"} onClose={onClose}>
-      <div className="flex gap-2 mb-4"><button onClick={() => { setDirection("in"); setCategory((data.incomeCategories || [])[0]); }} className="flex-1 py-2 rounded-xl text-xs font-bold text-white" style={{ backgroundColor: direction === "in" ? INCOME : MUTED }}>Receita</button><button onClick={() => { setDirection("out"); setCategory((data.expenseCategories || [])[0]); }} className="flex-1 py-2 rounded-xl text-xs font-bold text-white" style={{ backgroundColor: direction === "out" ? EXPENSE : MUTED }}>Despesa</button></div>
+      <div className="flex gap-2 mb-4"><button onClick={() => { setDirection("in"); setStatus(editing?.status === "pending" ? "pending" : "received"); setCategory((data.incomeCategories || [])[0]); }} className="flex-1 py-2 rounded-xl text-xs font-bold text-white" style={{ backgroundColor: direction === "in" ? INCOME : MUTED }}>Receita</button><button onClick={() => { setDirection("out"); setStatus(editing?.status === "pending" ? "pending" : "paid"); setCategory((data.expenseCategories || [])[0]); }} className="flex-1 py-2 rounded-xl text-xs font-bold text-white" style={{ backgroundColor: direction === "out" ? EXPENSE : MUTED }}>Despesa</button></div>
       <Field label="Quem"><select className={inputCls} style={inputStyle} value={profileKey} onChange={(e) => setProfileKey(e.target.value)}>{(data.profiles || []).map(p => <option key={p.key} value={p.key}>{p.name}</option>)}</select></Field>
       <Field label="Descrição"><input className={inputCls} style={inputStyle} value={description} onChange={(e) => setDescription(e.target.value)} autoFocus /></Field>
       <div className="grid grid-cols-2 gap-4"><Field label="Valor"><input type="number" step="0.01" className={inputCls} style={inputStyle} value={amount} onChange={(e) => setAmount(e.target.value)} /></Field><Field label="Data"><input type="date" className={inputCls} style={inputStyle} value={date} onChange={(e) => setDate(e.target.value)} /></Field></div>
