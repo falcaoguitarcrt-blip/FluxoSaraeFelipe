@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
-  LayoutDashboard, Receipt, CalendarClock, CreditCard, TrendingUp, Target,
+  LayoutDashboard, Receipt, CalendarClock, CreditCard, TrendingUp,
   Settings, Plus, Trash2, Pencil, X, ChevronLeft, ChevronRight,
   ArrowUpCircle, ArrowDownCircle, Check, Download, Upload, Wallet, AlertCircle,
   MoreHorizontal, Landmark, Scale, Zap, Sun, Moon, Search, Copy, 
-  ArrowDownToLine, ArrowUpFromLine, BookOpen, LineChart as LineChartIcon, Lock, KeyRound, ShieldCheck
+  ArrowDownToLine, ArrowUpFromLine, LineChart as LineChartIcon, Lock, KeyRound, ShieldCheck
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from "recharts";
 import { initializeApp } from 'firebase/app';
@@ -337,6 +337,11 @@ export default function App() {
   const skipNextSave = useRef(true);
   const saveTimer = useRef(null);
 
+  useEffect(() => {
+    if (tab === "budgets" || tab === "psalms") setTab("dashboard");
+  }, [tab]);
+
+
   useEffect(() => { loadPin().then((p) => { setSavedPin(p || "0403"); }); }, []);
   useEffect(() => { loadTheme().then((t) => { setTheme(t); }); }, []);
 
@@ -462,8 +467,6 @@ export default function App() {
   ];
   const MORE_NAV = [
     { key: "investments", label: "Investimentos", icon: TrendingUp },
-    { key: "budgets", label: "Orçamento", icon: Target },
-    { key: "psalms", label: "Salmos", icon: BookOpen },
     { key: "settings", label: "Ajustes", icon: Settings },
   ];
   const ALL_NAV = [...NAV, ...MORE_NAV];
@@ -494,13 +497,11 @@ export default function App() {
       {tab === "bills" && <BillsTab data={data} month={month} profileFilter={profileFilter} profileName={profileName} setModal={setModal} removeItem={removeItem} updateItem={updateItem} addItem={addItem} showToast={showToast} />}
       {tab === "cards" && <CardsTab data={data} month={month} profileFilter={profileFilter} profileName={profileName} setModal={setModal} removeItem={removeItem} paidStatements={data.paidStatements || {}} togglePaidStatement={(cardId, m) => setData((prev) => { const k = `${cardId}-${m}`; const next = { ...(prev.paidStatements || {}) }; if (next[k]) delete next[k]; else next[k] = true; return { ...prev, paidStatements: next }; })} />}
       {tab === "investments" && <InvestmentsTab data={data} profileFilter={profileFilter} profileName={profileName} setModal={setModal} removeItem={removeItem} updateItem={updateItem} showToast={showToast} setData={setData} />}
-      {tab === "budgets" && <BudgetsTab data={data} month={month} profileFilter={profileFilter} setData={setData} showToast={showToast} />}
-      {tab === "psalms" && <PsalmsTab />}
       {tab === "settings" && <SettingsTab data={data} setData={setData} showToast={showToast} skipNextSave={skipNextSave} setModal={setModal} savedPin={savedPin} setSavedPin={setSavedPin} db={db} appId={appId} />}
     </div>
   );
 
-  const monthNavVisible = ["dashboard", "transactions", "bills", "cards", "budgets"].includes(tab);
+  const monthNavVisible = ["dashboard", "transactions", "bills", "cards"].includes(tab);
   const monthNav = (
     <div className="flex items-center gap-1 shrink-0 bg-white/70 backdrop-blur-md rounded-full p-1 border shadow-sm" style={{ borderColor: BORDER_SOFT, backgroundColor: SURFACE }}>
       <button onClick={() => setMonth((m) => addMonths(m, -1))} className="p-2 rounded-full hover:bg-black/5 cursor-pointer transition-colors"><ChevronLeft size={16} /></button>
@@ -626,69 +627,8 @@ function NavBtn({ n, active, onClick, accentColor }) {
   );
 }
 
-function PsalmsTab() {
-  const psalms = [
-    { ref: "Salmos 23:1", text: "O Senhor é o meu pastor; de nada me faltará." },
-    { ref: "Salmos 91:1", text: "Aquele que habita no esconderijo do Altíssimo, à sombra do Onipotente descansará." },
-    { ref: "Salmos 119:105", text: "Lâmpada para os meus pés é tua palavra, e luz para o meu caminho." },
-    { ref: "Salmos 121:1-2", text: "Elevo os meus olhos para os montes; de onde me vem o socorro? O meu socorro vem do Senhor, que fez os céus e a terra." },
-    { ref: "Salmos 46:1", text: "Deus é o nosso refúgio e fortaleza, socorro bem presente na angústia." },
-    { ref: "Salmos 37:5", text: "Entrega o teu caminho ao Senhor; confia nele, e ele o fará." }
-  ];
-  const [idx, setIdx] = useState(0);
-  useEffect(() => { const interval = setInterval(() => { setIdx((prev) => (prev + 1) % psalms.length); }, 10000); return () => clearInterval(interval); }, []);
-  const p = psalms[idx];
-  return (
-    <div className="flex flex-col items-center justify-center text-center h-full min-h-[55vh] px-4 animate-in fade-in zoom-in-95 duration-700">
-      <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-6 shadow-md" style={{ backgroundColor: PANEL_TINT }}><BookOpen size={36} style={{ color: COUPLE }} /></div>
-      <h2 style={{ fontFamily: "'Source Serif 4', serif", color: INK }} className="text-2xl md:text-4xl font-medium italic mb-8 leading-relaxed max-w-2xl">"{p.text}"</h2>
-      <span className="px-6 py-2.5 rounded-full text-sm font-bold uppercase tracking-widest transition-colors shadow-sm" style={{ background: "var(--c-couple-grad)", color: "#fff" }}>{p.ref}</span>
-    </div>
-  );
-}
-
-function BudgetsTab({ data, month, profileFilter, setData, showToast }) {
-  const limits = data.budgetLimits || {};
-  const monthTx = (data.transactions || []).filter((t) => t.date && t.date.startsWith(month) && t.direction === "out" && (profileFilter === "all" ? (t.profileKey === "p1" || t.profileKey === "p2") : t.profileKey === profileFilter) && transactionAffectsBalance(t));
-  const spentMap = {}; monthTx.forEach((t) => { spentMap[t.category] = (spentMap[t.category] || 0) + Number(t.amount); });
-  const setLimit = (cat, val) => {
-    const num = Number(val.replace(",", "."));
-    setData((prev) => { const next = { ...(prev.budgetLimits || {}) }; if (isNaN(num) || num <= 0) delete next[cat]; else next[cat] = num; return { ...prev, budgetLimits: next }; });
-    showToast("Orçamento atualizado");
-  };
-  return (
-    <div>
-      <SectionTitle subtitle={`Defina tetos máximos de gastos por categoria para ${fmtMonthLabel(month)}`}>Orçamento e Limites</SectionTitle>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {(data.expenseCategories || []).map((cat) => {
-          const spent = spentMap[cat] || 0; const limit = limits[cat] || 0;
-          const pct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0;
-          const isOver = limit > 0 && spent > limit; const isNear = limit > 0 && !isOver && pct >= 80;
-          return (
-            <Card key={cat} className="p-6 flex flex-col justify-between">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-base font-bold" style={{ color: INK }}>{cat}</span>
-                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border shadow-inner" style={{ borderColor: BORDER_SOFT, backgroundColor: SURFACE }}>
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider" style={{ color: MUTED }}>Teto:</span>
-                  <input type="number" step="50" min="0" className="w-20 text-right bg-transparent outline-none font-bold text-sm" style={{ color: INK }} value={limit || ""} placeholder="Ilimitado" onChange={(e) => setLimit(cat, e.target.value)} />
-                </div>
-              </div>
-              <div>
-                 <div className="flex justify-between items-end mb-2.5"><span className="text-xs font-semibold" style={{ color: MUTED }}>Gasto atual</span><span className="text-base font-bold"><Money value={spent} tone={isOver ? "expense" : undefined} /></span></div>
-                {limit > 0 && (
-                  <><div className="h-3 rounded-full overflow-hidden mb-2.5 shadow-inner" style={{ backgroundColor: MUTED_PANEL }}><div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: isOver ? EXPENSE : isNear ? "#E2A03F" : "var(--c-couple-grad)" }} /></div>
-                  <div className="flex justify-between text-xs font-bold" style={{ color: MUTED }}><span>{pct.toFixed(0)}% utilizado</span>{isOver && <span style={{ color: EXPENSE }}>Estourou {fmtCurrency(spent - limit)}!</span>}{isNear && <span style={{ color: "#E2A03F" }}>Atenção (80%)</span>}{!isOver && !isNear && <span>Restam {fmtCurrency(Math.max(0, limit - spent))}</span>}</div></>
-                )}
-              </div>
-            </Card>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function Dashboard({ data, month, profileFilter, profileName, setTab, setModal, setData, showToast }) {
+  // Futuramente, o conteúdo de Salmos/reflexão do casal será integrado nesta Visão Geral, sem criar uma nova aba.
   const monthTx = (data.transactions || []).filter((t) => t.date && t.date.startsWith(month) && (profileFilter === "all" ? (t.profileKey === "p1" || t.profileKey === "p2") : t.profileKey === profileFilter));
   const realizedMonthTx = monthTx.filter(transactionAffectsBalance);
   const income = realizedMonthTx.filter((t) => t.direction === "in").reduce((s, t) => s + Number(t.amount), 0);
