@@ -824,23 +824,126 @@ function TransactionsTab({ data, month, profileFilter, profileName, setModal, re
 
 function BillsTab({ data, month, profileFilter, profileName, setModal, removeItem, updateItem, addItem, showToast }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const items = (data.bills || []).filter((b) => b.dueDate && b.dueDate.startsWith(month) && (profileFilter === "all" ? (b.profileKey === "p1" || b.profileKey === "p2") : b.profileKey === profileFilter)).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  const statusMeta = { pending: { label: "Pendente", color: COUPLE }, paid: { label: "Paga", color: INCOME }, late: { label: "Atrasada", color: EXPENSE } };
+  const [statusFilter, setStatusFilter] = useState("all");
+  const items = (data.bills || [])
+    .filter((b) => b.dueDate && b.dueDate.startsWith(month) && (profileFilter === "all" ? (b.profileKey === "p1" || b.profileKey === "p2") : b.profileKey === profileFilter))
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+
+  const getEffectiveStatus = (bill) => {
+    if (bill.status === "paid") return "paid";
+    if (bill.status === "late") return "late";
+    return bill.dueDate && bill.dueDate < todayStr() ? "late" : "pending";
+  };
+
+  const statusMeta = {
+    pending: { label: "Pendente", color: COUPLE, bg: PANEL_TINT },
+    paid: { label: "Paga", color: INCOME, bg: INCOME_BG },
+    late: { label: "Atrasada", color: EXPENSE, bg: EXPENSE_BG },
+  };
+
+  const pendingItems = items.filter((b) => getEffectiveStatus(b) === "pending");
+  const paidItems = items.filter((b) => getEffectiveStatus(b) === "paid");
+  const lateItems = items.filter((b) => getEffectiveStatus(b) === "late");
+  const pendingTotal = pendingItems.reduce((s, b) => s + Number(b.amount || 0), 0);
+  const paidTotal = paidItems.reduce((s, b) => s + Number(b.amount || 0), 0);
+  const lateTotal = lateItems.reduce((s, b) => s + Number(b.amount || 0), 0);
+
+  const visibleItems = statusFilter === "all"
+    ? items
+    : items.filter((b) => getEffectiveStatus(b) === statusFilter);
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-4"><SectionTitle subtitle={`${items.length} contas`}>Contas a Pagar</SectionTitle><Btn variant="couple" onClick={() => setModal({ type: "bill" })}><Plus size={16} /> Nova</Btn></div>
-      {items.length === 0 ? <Card className="p-8"><EmptyState icon={CalendarClock} title="Nenhuma conta" /></Card> : (
+      <div className="flex items-center justify-between mb-4">
+        <SectionTitle subtitle="Organize vencimentos sem perder o histórico">Contas a Pagar</SectionTitle>
+        <Btn variant="couple" onClick={() => setModal({ type: "bill" })}><Plus size={16} /> Nova</Btn>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <button onClick={() => setStatusFilter(statusFilter === "pending" ? "all" : "pending")} className="text-left cursor-pointer">
+          <Card className="p-5 hover:shadow-md transition-shadow" style={{ borderColor: statusFilter === "pending" ? COUPLE : BORDER }}>
+            <p className="text-[11px] font-black uppercase tracking-wider mb-1" style={{ color: COUPLE }}>Pendentes</p>
+            <p className="text-xl font-black"><Money value={pendingTotal} /></p>
+            <p className="text-xs font-semibold mt-1" style={{ color: MUTED }}>{pendingItems.length} {pendingItems.length === 1 ? "conta" : "contas"}</p>
+          </Card>
+        </button>
+        <button onClick={() => setStatusFilter(statusFilter === "late" ? "all" : "late")} className="text-left cursor-pointer">
+          <Card className="p-5 hover:shadow-md transition-shadow" style={{ borderColor: statusFilter === "late" ? EXPENSE : BORDER }}>
+            <p className="text-[11px] font-black uppercase tracking-wider mb-1" style={{ color: EXPENSE }}>Atrasadas</p>
+            <p className="text-xl font-black"><Money value={lateTotal} tone="expense" /></p>
+            <p className="text-xs font-semibold mt-1" style={{ color: MUTED }}>{lateItems.length} {lateItems.length === 1 ? "conta" : "contas"}</p>
+          </Card>
+        </button>
+        <button onClick={() => setStatusFilter(statusFilter === "paid" ? "all" : "paid")} className="text-left cursor-pointer">
+          <Card className="p-5 hover:shadow-md transition-shadow" style={{ borderColor: statusFilter === "paid" ? INCOME : BORDER }}>
+            <p className="text-[11px] font-black uppercase tracking-wider mb-1" style={{ color: INCOME }}>Pagas</p>
+            <p className="text-xl font-black"><Money value={paidTotal} tone="income" /></p>
+            <p className="text-xs font-semibold mt-1" style={{ color: MUTED }}>{paidItems.length} {paidItems.length === 1 ? "conta" : "contas"}</p>
+          </Card>
+        </button>
+      </div>
+
+      {statusFilter !== "all" && (
+        <div className="flex items-center justify-between mb-4 px-1">
+          <p className="text-xs font-bold uppercase tracking-wider" style={{ color: MUTED }}>
+            Exibindo: {statusMeta[statusFilter].label}
+          </p>
+          <button onClick={() => setStatusFilter("all")} className="text-xs font-bold underline cursor-pointer" style={{ color: COUPLE }}>
+            Mostrar todas
+          </button>
+        </div>
+      )}
+
+      {visibleItems.length === 0 ? (
+        <Card className="p-8"><EmptyState icon={CalendarClock} title={statusFilter === "all" ? "Nenhuma conta" : "Nenhuma conta neste status"} hint={statusFilter === "all" ? "Cadastre suas contas para acompanhar vencimentos e pagamentos." : "Altere o filtro acima para visualizar outras contas."} /></Card>
+      ) : (
         <Card>
-          {items.map((b, i) => (
-            <div key={b.id} className="flex items-center gap-4 px-6 py-4.5 hover:bg-black/5 transition-colors" style={{ borderTop: i > 0 ? `1px solid ${BORDER}` : "none" }}>
-              <button onClick={() => updateItem("bills", b.id, { status: b.status === "paid" ? "pending" : "paid" })} className="w-8 h-8 rounded-full border-2 flex items-center justify-center shrink-0 cursor-pointer" style={{ borderColor: b.status === "paid" ? INCOME : BORDER_SOFT, backgroundColor: b.status === "paid" ? INCOME : "transparent" }}>{b.status === "paid" && <Check size={16} color="#fff" strokeWidth={3} />}</button>
-              <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setModal({ type: "bill", item: b })}><p className="text-sm font-bold truncate mb-1">{b.description}</p><p className="text-xs font-semibold" style={{ color: MUTED }}>Vence {fmtDate(b.dueDate)} · <Dot color={profileColor(data, b.profileKey)} />{b.responsible || profileName(b.profileKey)}</p></div>
-              <div className="text-right shrink-0"><div className="text-base font-black"><Money value={b.amount} /></div><div className="text-[10px] font-black uppercase mt-0.5" style={{ color: statusMeta[b.status || "pending"].color }}>{statusMeta[b.status || "pending"].label}</div></div>
-              <div className="flex items-center gap-1.5"><button onClick={() => { const { id, ...rest } = b; addItem("bills", { ...rest, dueDate: `${addMonths(month, 1)}-${b.dueDate.slice(8, 10)}`, status: "pending" }); showToast("Duplicado para próximo mês"); }} className="p-2.5 shrink-0 cursor-pointer hover:bg-black/10 rounded-xl" style={{ color: MUTED }}><Copy size={16} /></button><button onClick={() => setConfirmDeleteId(b.id)} className="p-2.5 shrink-0 cursor-pointer hover:bg-black/10 rounded-xl" style={{ color: EXPENSE }}><Trash2 size={16} /></button></div>
-            </div>
-          ))}
+          {visibleItems.map((b, i) => {
+            const effectiveStatus = getEffectiveStatus(b);
+            const meta = statusMeta[effectiveStatus];
+            const isPaid = effectiveStatus === "paid";
+            return (
+              <div key={b.id} className="flex items-center gap-4 px-6 py-4.5 hover:bg-black/5 transition-colors" style={{ borderTop: i > 0 ? "1px solid " + BORDER : "none" }}>
+                <button
+                  onClick={() => {
+                    updateItem("bills", b.id, { status: isPaid ? "pending" : "paid" });
+                    showToast(isPaid ? "Conta marcada como pendente" : "Conta marcada como paga");
+                  }}
+                  className="w-8 h-8 rounded-full border-2 flex items-center justify-center shrink-0 cursor-pointer hover:scale-105 transition-transform"
+                  style={{ borderColor: isPaid ? INCOME : meta.color, backgroundColor: isPaid ? INCOME : "transparent" }}
+                  title={isPaid ? "Voltar para pendente" : "Marcar como paga"}
+                >
+                  {isPaid && <Check size={16} color="#fff" strokeWidth={3} />}
+                </button>
+
+                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setModal({ type: "bill", item: b })}>
+                  <p className="text-sm font-bold truncate mb-1">{b.description}</p>
+                  <p className="text-xs font-semibold truncate" style={{ color: MUTED }}>
+                    Vence {fmtDate(b.dueDate)} · <Dot color={profileColor(data, b.profileKey)} />{b.responsible || profileName(b.profileKey)}
+                  </p>
+                </div>
+
+                <div className="text-right shrink-0">
+                  <div className="text-base font-black"><Money value={b.amount} /></div>
+                  <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide mt-1" style={{ color: meta.color, backgroundColor: meta.bg }}>
+                    {meta.label}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button onClick={() => { const { id, ...rest } = b; addItem("bills", { ...rest, dueDate: addMonths(month, 1) + "-" + b.dueDate.slice(8, 10), status: "pending" }); showToast("Duplicado para próximo mês"); }} className="p-2.5 shrink-0 cursor-pointer hover:bg-black/10 rounded-xl" style={{ color: MUTED }} title="Duplicar para o próximo mês"><Copy size={16} /></button>
+                  <button onClick={() => setConfirmDeleteId(b.id)} className="p-2.5 shrink-0 cursor-pointer hover:bg-black/10 rounded-xl" style={{ color: EXPENSE }} title="Excluir conta"><Trash2 size={16} /></button>
+                </div>
+              </div>
+            );
+          })}
         </Card>
       )}
+
+      <p className="text-xs leading-relaxed mt-4 px-1" style={{ color: MUTED }}>
+        A aba Contas funciona como controle de obrigações e vencimentos. O saldo financeiro continua sendo movimentado pelos lançamentos efetivamente realizados.
+      </p>
+
       {confirmDeleteId && <ConfirmDialog title="Excluir?" message="Apagar conta?" onConfirm={() => { removeItem("bills", confirmDeleteId); setConfirmDeleteId(null); showToast("Excluído"); }} onClose={() => setConfirmDeleteId(null)} />}
     </div>
   );
