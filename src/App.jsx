@@ -1158,23 +1158,37 @@ function CardForm({ modal, onClose, data, addItem, updateItem, defaultProfile, s
 }
 function CardPurchaseForm({ modal, onClose, data, addItem, updateItem, defaultProfile, showToast, month }) {
   const editing = modal.item;
-  const [cardId, setCardId] = useState(editing?.cardId || modal.cardId || (data.cards || [])[0]?.id);
+  const allowedProfiles = defaultProfile ? [defaultProfile] : ["p1", "p2"];
+  const availableCards = (data.cards || []).filter((c) => c.active !== false && allowedProfiles.includes(c.profileKey));
+  const [cardId, setCardId] = useState(editing?.cardId || modal.cardId || availableCards[0]?.id || "");
+  const selectedInitialCard = availableCards.find((c) => c.id === cardId) || (data.cards || []).find((c) => c.id === cardId);
+  const selectedProfileKey = selectedInitialCard?.profileKey || defaultProfile || "";
   const [description, setDescription] = useState(editing?.description || "");
   const [totalAmount, setTotalAmount] = useState(editing?.totalAmount ?? "");
   const [installments, setInstallments] = useState(editing?.installments ?? 1);
-  const save = () => { if (!cardId || !description || !totalAmount) return; const p = { cardId, profileKey: defaultProfile, description, category: (data.expenseCategories || [])[0], purchaseDate: `${month}-01`, totalAmount: Number(totalAmount), installments: Number(installments) }; if (editing) updateItem("cardPurchases", editing.id, p); else addItem("cardPurchases", p); showToast("Salvo"); onClose(); };
+  const [categoryId, setCategoryId] = useState(editing?.categoryId || "");
+  const categories = getProfileCatalog(data, "expenseCategoryCatalog", selectedProfileKey);
+  useEffect(() => { if (!categoryId && categories[0]) setCategoryId(categories[0].id); }, [categoryId, categories]);
+  const save = () => {
+    const card = (data.cards || []).find((c) => c.id === cardId);
+    const profileKey = card?.profileKey || selectedProfileKey;
+    const category = getProfileCatalog(data, "expenseCategoryCatalog", profileKey, true).find((c) => c.id === categoryId);
+    if (!card || !profileKey || !description.trim() || !totalAmount || !category) { showToast("Preencha cartão, descrição, categoria e valor"); return; }
+    const p = { cardId: card.id, profileKey, description: description.trim(), category: category.name, categoryId: category.id, purchaseDate: month + "-01", totalAmount: Number(totalAmount), installments: Math.max(1, Number(installments) || 1) };
+    if (editing) updateItem("cardPurchases", editing.id, p); else addItem("cardPurchases", p);
+    showToast("Compra lançada");
+    onClose();
+  };
   return (
     <Modal title="Compra no Cartão" onClose={onClose}>
-      <Field label="Cartão"><select className={inputCls} style={inputStyle} value={cardId} onChange={(e) => setCardId(e.target.value)}>
-        {(data.cards || []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-      </select></Field>
+      <Field label="Cartão"><select className={inputCls} style={inputStyle} value={cardId} onChange={(e) => { setCardId(e.target.value); setCategoryId(""); }}>{!availableCards.length && <option value="">Nenhum cartão disponível</option>}{availableCards.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+      <Field label="Categoria"><select className={inputCls} style={inputStyle} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>{!categories.length && <option value="">Nenhuma categoria</option>}{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
       <Field label="Descrição"><input className={inputCls} style={inputStyle} value={description} onChange={(e) => setDescription(e.target.value)} autoFocus /></Field>
       <div className="grid grid-cols-2 gap-4"><Field label="Valor Total (R$)"><input type="number" step="0.01" className={inputCls} style={inputStyle} value={totalAmount} onChange={(e) => setTotalAmount(e.target.value)} /></Field><Field label="Parcelas"><input type="number" min="1" className={inputCls} style={inputStyle} value={installments} onChange={(e) => setInstallments(e.target.value)} /></Field></div>
       <Btn variant="couple" className="w-full justify-center mt-2 py-3" onClick={save}>Lançar na Fatura</Btn>
     </Modal>
   );
 }
-
 function InvestmentForm({ modal, onClose, data, addItem, updateItem, defaultProfile, showToast }) {
   const editing = modal.item;
   const [description, setDescription] = useState(editing?.description || ""); const [investedAmount, setInvestedAmount] = useState(editing?.investedAmount ?? "");
