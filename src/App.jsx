@@ -128,7 +128,8 @@ const DEFAULT_STATE = {
   budgetLimits: {},
   transactions: [],
   // Histórico legado preservado no estado para não apagar dados do Firebase; a interface não utiliza mais bills.
-  bills: [],\n  cards: [],
+  bills: [],
+  cards: [],
   cardPurchases: [],
   investments: [],
   goals: [],
