@@ -1016,7 +1016,7 @@ function InvestmentsTab({ data, profileFilter, profileName, setModal, removeItem
           );
         })}
       </Card>
-      {(profileFilter === saraProfileKey(data) || profileFilter === "all") && <GoalsSection data={data} profileFilter={profileFilter} profileName={profileName} setModal={setModal} removeItem={removeItem} updateItem={updateItem} showToast={showToast} />}
+      {((profileFilter === "all") || profileFilter === "p1" || profileFilter === "p2") && <GoalsSection data={data} profileFilter={profileFilter} profileName={profileName} setModal={setModal} removeItem={removeItem} updateItem={updateItem} showToast={showToast} />}
       {confirmDeleteId && <ConfirmDialog title="Excluir?" message="Apagar ativo?" onConfirm={() => { removeItem("investments", confirmDeleteId); setConfirmDeleteId(null); showToast("Excluído"); }} onClose={() => setConfirmDeleteId(null)} />}
     </div>
   );
@@ -1050,7 +1050,7 @@ function GoalsSection({ data, profileFilter, profileName, setModal, removeItem, 
 }
 
 function ModalRouter({ modal, onClose, data, setData, addItem, updateItem, removeItem, addCategory, addBank, month, profileFilter, showToast }) {
-  const defaultProfile = profileFilter !== "all" ? profileFilter : (data.profiles && data.profiles[0]?.key);
+  const defaultProfile = profileFilter !== "all" ? profileFilter : undefined;
   if (modal.type === "transaction") return <TransactionForm modal={modal} onClose={onClose} data={data} addItem={addItem} updateItem={updateItem} addBank={addBank} month={month} defaultProfile={defaultProfile} showToast={showToast} />;
   if (modal.type === "card") return <CardForm modal={modal} onClose={onClose} data={data} addItem={addItem} updateItem={updateItem} defaultProfile={defaultProfile} showToast={showToast} />;
   if (modal.type === "cardPurchase") return <CardPurchaseForm modal={modal} onClose={onClose} data={data} addItem={addItem} updateItem={updateItem} defaultProfile={defaultProfile} showToast={showToast} month={month} />;
