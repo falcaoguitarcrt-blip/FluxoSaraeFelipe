@@ -137,7 +137,7 @@ try {
   console.error("Erro ao inicializar Firebase:", error);
 }
 
-const appId = "fluxo-casal-compartilhado-oficial-2026"; 
+const appId = "fluxo-casal-producao"; 
 
 async function loadTheme() {
   try { const res = localStorage.getItem(THEME_KEY); if (res) return res; } catch (e) {}
