@@ -586,7 +586,7 @@ export default function App() {
         <div className="w-full pointer-events-auto border-t pb-safe shadow-[0_-6px_24px_rgba(0,0,0,0.08)] backdrop-blur-xl" style={{ borderColor: BORDER, backgroundColor: PANEL_TINT }}>
           <div className={`grid ${isOtherProfile ? "grid-cols-3" : "grid-cols-5"} max-w-md mx-auto">
             {(isOtherProfile ? NAV.filter((n) => ["dashboard", "transactions", "bills"].includes(n.key)) : NAV).map((n) => <NavBtn key={n.key} n={n} active={tab === n.key} onClick={() => { setTab(n.key); setMoreOpen(false); }} accentColor={accentStyle["--c-couple"] || COUPLE} />)}
-            {!isOtherProfile && <button onClick={() => setMoreOpen((v) => !v)} className="flex flex-col items-center justify-center gap-1 py-3 cursor-pointer transition-colors" style={{ color: MORE_NAV.some((n) => n.key === tab) ? (accentStyle["--c-couple"] || COUPLE) : MUTED, borderTop: MORE_NAV.some((n) => n.key === tab) ? `3px solid ${accentStyle["--c-couple"] || COUPLE}` : "3px solid transparent" }}><MoreHorizontal size={22} /><span className="text-[10px] font-bold tracking-wide">Mais</span></button>}
+            {!isOtherProfile && <button onClick={() => setMoreOpen((v) => !v)} className="flex flex-col items-center justify-center gap-1 py-3 cursor-pointer transition-colors" style={{ color: MORE_NAV.some((n) => n.key === tab) ? (accentStyle["--c-couple"] || COUPLE) : MUTED, borderTop: MORE_NAV.some((n) => n.key === tab) ? "3px solid " + (accentStyle["--c-couple"] || COUPLE) : "3px solid transparent" }}><MoreHorizontal size={22} /><span className="text-[10px] font-bold tracking-wide">Mais</span></button>}
           </div>
         </div>
       </div>
