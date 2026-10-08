@@ -1089,11 +1089,11 @@ function SettingsTab({ data, setData, showToast, skipNextSave, setModal, savedPi
 }
 
 function ModalRouter({ modal, onClose, data, setData, addItem, updateItem, removeItem, addCategory, addBank, month, profileFilter, showToast }) {
-  const defaultProfile = profileFilter !== "all" ? profileFilter : undefined;
+  const defaultProfile = profileFilter !== "all" ? profileFilter : (data.profiles && data.profiles[0]?.key);
   if (modal.type === "transaction") return <TransactionForm modal={modal} onClose={onClose} data={data} addItem={addItem} updateItem={updateItem} addBank={addBank} month={month} defaultProfile={defaultProfile} showToast={showToast} />;
   if (modal.type === "card") return <CardForm modal={modal} onClose={onClose} data={data} addItem={addItem} updateItem={updateItem} defaultProfile={defaultProfile} showToast={showToast} />;
   if (modal.type === "cardPurchase") return <CardPurchaseForm modal={modal} onClose={onClose} data={data} addItem={addItem} updateItem={updateItem} defaultProfile={defaultProfile} showToast={showToast} month={month} />;
-  if (modal.type === "investment") return <InvestmentForm modal={modal} onClose={onClose} data={data} addItem={addItem} updateItem={updateItem} defaultProfile={defaultProfile} showToast={showToast} />;
+  if (modal.type === "investment") return <InvestmentForm modal={modal} onClose={onClose} data={data} addItem={addItem} updateItem={updateItem} defaultProfile={profileFilter !== "all" ? profileFilter : undefined} showToast={showToast} />;
   if (modal.type === "goal") return <GoalForm modal={modal} onClose={onClose} data={data} addItem={addItem} updateItem={updateItem} defaultProfile={defaultProfile} showToast={showToast} />;
   if (modal.type === "goalAdjust") return <GoalAdjustForm modal={modal} onClose={onClose} updateItem={updateItem} showToast={showToast} />;
   return null;
