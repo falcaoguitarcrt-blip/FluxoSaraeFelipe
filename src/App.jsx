@@ -511,7 +511,8 @@ export default function App() {
   );
 
   const themeToggleBtn = <button onClick={toggleTheme} className="w-10 h-10 rounded-full flex items-center justify-center border shrink-0 bg-transparent cursor-pointer hover:bg-black/5 transition-all shadow-sm" style={{ borderColor: BORDER_SOFT, color: MUTED, backgroundColor: SURFACE }} title={theme === "light" ? "Modo escuro" : "Modo claro"}>{theme === "light" ? <Moon size={18} /> : <Sun size={18} />}</button>;
-  const settingsBtn = !isOtherProfile ? <button onClick={() => { setTab("settings"); setMoreOpen(false); }} className="w-10 h-10 rounded-full flex items-center justify-center border shrink-0 cursor-pointer hover:bg-black/5 transition-all shadow-sm" style={{ borderColor: BORDER_SOFT, color: accentStyle["--c-couple"] || COUPLE, backgroundColor: SURFACE }} title="Ajustes"><Settings size={18} /></button> : null;
+  const settingsContextLabel = settingsContext === "transactions" ? "Lançamentos" : settingsContext === "cards" ? "Cartões" : settingsContext === "investments" ? "Investimentos" : "Visão Geral";
+  const settingsBtn = <button onClick={() => { setSettingsContext(tab === "settings" ? settingsContext : tab); setTab("settings"); setMoreOpen(false); }} className="w-10 h-10 rounded-full flex items-center justify-center border shrink-0 cursor-pointer hover:bg-black/5 transition-all shadow-sm" style={{ borderColor: BORDER_SOFT, color: accentStyle["--c-couple"] || COUPLE, backgroundColor: SURFACE }} title={"Ajustes de " + settingsContextLabel}><Settings size={18} /></button>
 
   const desktopView = (
       <div className="w-full h-full min-h-screen flex mx-auto transition-colors duration-300" style={{ ...THEMES[theme], ...accentStyle, backgroundColor: PAPER_TINT, color: INK, fontFamily: "'Inter', sans-serif" }}>
@@ -529,7 +530,7 @@ export default function App() {
             <div className="my-6 border-t" style={{ borderColor: BORDER }} />
             <div className="flex flex-col gap-2">
               {PROFILE_NAV.map((n) => (
-                <button key={n.key} onClick={() => setTab(n.key)} className="flex items-center gap-3.5 px-4 py-3.5 rounded-2xl text-sm font-bold text-left cursor-pointer transition-all duration-200" style={tab === n.key ? { background: accentStyle["--c-couple-grad"] || "var(--c-couple-grad)", color: "#fff", boxShadow: "0 4px 16px rgba(107, 63, 202, 0.3)" } : { color: MUTED }}>
+                <button key={n.key} onClick={() => { setSettingsContext(n.key); setTab(n.key); }} className="flex items-center gap-3.5 px-4 py-3.5 rounded-2xl text-sm font-bold text-left cursor-pointer transition-all duration-200" style={tab === n.key ? { background: accentStyle["--c-couple-grad"] || "var(--c-couple-grad)", color: "#fff", boxShadow: "0 4px 16px rgba(107, 63, 202, 0.3)" } : { color: MUTED }}>
                   <n.icon size={20} />{n.label}
                 </button>
               ))}
