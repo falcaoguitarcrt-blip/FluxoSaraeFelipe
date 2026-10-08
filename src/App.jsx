@@ -98,6 +98,20 @@ const todayStr = () => new Date().toISOString().slice(0, 10);
 const currentMonthStr = () => new Date().toISOString().slice(0, 7);
 const fmtCurrency = (n) => (Number(n) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+function getInvestmentSummary(data, profileFilter = "all") {
+  const items = (data.investments || []).filter((i) =>
+    profileFilter === "all"
+      ? (i.profileKey === "p1" || i.profileKey === "p2")
+      : i.profileKey === profileFilter
+  );
+  const invested = items.reduce((sum, i) => sum + Number(i.investedAmount || 0), 0);
+  const market = items.reduce((sum, i) => sum + Number(i.marketValue || 0), 0);
+  const gain = market - invested;
+  const gainPct = invested > 0 ? (gain / invested) * 100 : 0;
+  return { items, invested, market, gain, gainPct, count: items.length };
+}
+
+
 const fmtDate = (s) => {
   if (!s) return "";
   const d = new Date(s + "T00:00:00");
@@ -644,6 +658,22 @@ function Dashboard({ data, month, profileFilter, profileName, setTab, setModal, 
   });
   const totalIncomeAll = splitByProfile.reduce((s, p) => s + p.receitas, 0); const totalExpenseAll = splitByProfile.reduce((s, p) => s + p.despesas, 0);
 
+  const investmentSummary = getInvestmentSummary(data, profileFilter);
+  const investmentDistribution = profileFilter === "all"
+    ? (data.profiles || [])
+        .filter((p) => p.key === "p1" || p.key === "p2")
+        .map((p) => {
+          const summary = getInvestmentSummary(data, p.key);
+          return {
+            key: p.key,
+            name: p.name,
+            color: profileColor(data, p.key),
+            market: summary.market,
+            percentage: investmentSummary.market > 0 ? (summary.market / investmentSummary.market) * 100 : 0,
+          };
+        })
+    : [];
+
   const bankMap = {}; realizedMonthTx.forEach((t) => { const b = t.bank || "Carteira"; bankMap[b] = (bankMap[b] || 0) + (t.direction === "in" ? Number(t.amount) : -Number(t.amount)); });
   const bankRows = Object.entries(bankMap).filter(([_, v]) => v !== 0).sort((a, b) => b[1] - a[1]);
   const recentTx = monthTx.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8);
@@ -676,6 +706,74 @@ function Dashboard({ data, month, profileFilter, profileName, setTab, setModal, 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">{bankRows.map(([b, v]) => (<div key={b} className="p-4 rounded-xl border shadow-sm" style={{ backgroundColor: PANEL, borderColor: BORDER_SOFT }}><p className="text-xs font-semibold truncate mb-1" style={{ color: MUTED }}>{b}</p><p className="text-sm font-bold"><Money value={v} tone={v >= 0 ? "income" : "expense"} /></p></div>))}</div>
             </Card>
           )}
+                    {profileFilter !== "p3" && (
+            <Card
+              className="p-6 mb-6 cursor-pointer hover:shadow-md transition-all"
+              onClick={() => setTab("investments")}
+              title={profileFilter === "all" ? "Abrir Investimentos do Casal" : `Abrir Investimentos de ${profileName(profileFilter)}`}
+              style={{ borderLeft: `5px solid ${profileFilter === "all" ? COUPLE : profileColor(data, profileFilter)}` }}
+            >
+              <div className="flex items-center justify-between gap-4 mb-5">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${profileFilter === "all" ? COUPLE : profileColor(data, profileFilter)}18`, color: profileFilter === "all" ? COUPLE : profileColor(data, profileFilter) }}>
+                    <TrendingUp size={19} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-black uppercase tracking-wider truncate" style={{ color: INK }}>
+                      {profileFilter === "all" ? "Patrimônio Investido do Casal" : `Investimentos de ${profileName(profileFilter)}`}
+                    </p>
+                    <p className="text-xs font-semibold mt-0.5" style={{ color: MUTED }}>Resumo patrimonial</p>
+                  </div>
+                </div>
+                <span className="text-xs font-bold shrink-0" style={{ color: profileFilter === "all" ? COUPLE : profileColor(data, profileFilter) }}>Ver investimentos →</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3.5 rounded-xl" style={{ backgroundColor: PANEL }}>
+                  <p className="text-[10px] font-black uppercase tracking-wider mb-1" style={{ color: MUTED }}>Investido</p>
+                  <p className="text-lg sm:text-xl font-black"><Money value={investmentSummary.invested} /></p>
+                </div>
+                <div className="p-3.5 rounded-xl" style={{ backgroundColor: PANEL }}>
+                  <p className="text-[10px] font-black uppercase tracking-wider mb-1" style={{ color: MUTED }}>Atual</p>
+                  <p className="text-lg sm:text-xl font-black"><Money value={investmentSummary.market} /></p>
+                </div>
+                <div className="p-3.5 rounded-xl" style={{ backgroundColor: PANEL }}>
+                  <p className="text-[10px] font-black uppercase tracking-wider mb-1" style={{ color: investmentSummary.gain > 0 ? INCOME : investmentSummary.gain < 0 ? EXPENSE : MUTED }}>
+                    Resultado {investmentSummary.gain > 0 ? "positivo" : investmentSummary.gain < 0 ? "negativo" : "neutro"}
+                  </p>
+                  <p className="text-lg sm:text-xl font-black"><Money value={investmentSummary.gain} tone={investmentSummary.gain >= 0 ? "income" : "expense"} /></p>
+                  <p className="text-[10px] font-bold mt-0.5" style={{ color: investmentSummary.gain >= 0 ? INCOME : EXPENSE }}>{investmentSummary.gain >= 0 ? "+" : ""}{investmentSummary.gainPct.toFixed(1)}%</p>
+                </div>
+                <div className="p-3.5 rounded-xl" style={{ backgroundColor: PANEL }}>
+                  <p className="text-[10px] font-black uppercase tracking-wider mb-1" style={{ color: MUTED }}>Ativos</p>
+                  <p className="text-lg sm:text-xl font-black" style={{ color: INK }}>{investmentSummary.count}</p>
+                </div>
+              </div>
+
+              {profileFilter === "all" && (
+                <div className="mt-5 pt-4 border-t" style={{ borderColor: BORDER }}>
+                  <div className="flex items-center justify-between mb-2.5">
+                    <p className="text-xs font-black uppercase tracking-wider" style={{ color: MUTED }}>Distribuição</p>
+                    <p className="text-[10px] font-semibold" style={{ color: MUTED }}>por valor atual</p>
+                  </div>
+                  <div className="space-y-2.5">
+                    {investmentDistribution.map((p) => (
+                      <div key={p.key}>
+                        <div className="flex items-center justify-between gap-3 text-xs font-bold mb-1">
+                          <span className="flex items-center gap-2 min-w-0" style={{ color: INK }}><Dot color={p.color} />{p.name}</span>
+                          <span className="shrink-0" style={{ color: MUTED }}>{fmtCurrency(p.market)} · {p.percentage.toFixed(0)}%</span>
+                        </div>
+                        <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: MUTED_PANEL }}>
+                          <div className="h-full rounded-full" style={{ width: `${Math.min(100, p.percentage)}%`, backgroundColor: p.color }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </Card>
+          )}
+          {pieData.length > 0 && (
           {pieData.length > 0 && (
             <Card className="p-6 mb-6">
               <p className="text-sm font-bold uppercase tracking-wider mb-4" style={{ color: MUTED }}>Despesas por Categoria</p>
@@ -987,9 +1085,7 @@ function CardsTab({ data, month, profileFilter, profileName, setModal, removeIte
 
 function InvestmentsTab({ data, profileFilter, profileName, setModal, removeItem, updateItem, showToast, setData }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const items = (data.investments || []).filter((i) => profileFilter === "all" ? (i.profileKey === "p1" || i.profileKey === "p2") : i.profileKey === profileFilter);
-  const invested = items.reduce((s, i) => s + Number(i.investedAmount), 0); const market = items.reduce((s, i) => s + Number(i.marketValue), 0);
-  const gain = market - invested; const gainPct = invested > 0 ? (gain / invested) * 100 : 0;
+  const { items, invested, market, gain, gainPct } = getInvestmentSummary(data, profileFilter);
   const history = data.netWorthHistory || [];
   const handleRecordSnapshot = () => {
     const cur = currentMonthStr(); const idx = history.findIndex((h) => h.month === cur);
