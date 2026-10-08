@@ -741,12 +741,12 @@ function Dashboard({ data, month, profileFilter, profileName, setTab, setModal, 
                   <p className="text-[10px] font-black uppercase tracking-wider mb-1" style={{ color: investmentSummary.gain > 0 ? INCOME : investmentSummary.gain < 0 ? EXPENSE : MUTED }}>
                     Resultado {investmentSummary.gain > 0 ? "positivo" : investmentSummary.gain < 0 ? "negativo" : "neutro"}
                   </p>
-                  <p className="text-base sm:text-xl font-black whitespace-nowrap"><Money value={investmentSummary.gain tone={investmentSummary.gain >= 0 ? "income" : "expense"} /></p>
+                  <p className="text-base sm:text-xl font-black whitespace-nowrap"><Money value={investmentSummary.gain} tone={investmentSummary.gain >= 0 ? "income" : "expense"} /></p>
                   <p className="text-[10px] font-bold mt-0.5" style={{ color: investmentSummary.gain >= 0 ? INCOME : EXPENSE }}>{investmentSummary.gain >= 0 ? "+" : ""}{investmentSummary.gainPct.toFixed(1)}%</p>
                 </div>
                 <div className="p-3.5 rounded-xl" style={{ backgroundColor: PANEL }}>
                   <p className="text-[10px] font-black uppercase tracking-wider mb-1" style={{ color: MUTED }}>Ativos</p>
-                  <p className="text-base sm:text-xl font-black whitespace-nowrap" style={{ color: INK }}>{investmentSummary.count</p>
+                  <p className="text-base sm:text-xl font-black whitespace-nowrap" style={{ color: INK }}>{investmentSummary.count}</p>
                 </div>
               </div>
 
