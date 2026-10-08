@@ -6,6 +6,8 @@ import {
   Landmark, Scale, Zap, Sun, Moon, Search, Copy, 
   ArrowDownToLine, ArrowUpFromLine, LineChart as LineChartIcon, Lock, KeyRound, ShieldCheck
 } from "lucide-react";
+import SettingsTab from "./SettingsCenter";
+import { DEFAULT_STATE, migrateData, getProfileCatalog, getAccountsForProfile } from "./dataConfig";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from "recharts";
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
@@ -114,27 +116,6 @@ const addMonths = (m, delta) => {
   const [y, mo] = m.split("-").map(Number);
   const d = new Date(y, mo - 1 + delta, 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-};
-
-const DEFAULT_STATE = {
-  lastAutoBackup: 0,
-  initialBalances: { p1: 0, p2: 0, p3: 0 },
-  profiles: [{ key: "p1", name: "Felipe" }, { key: "p2", name: "Sara" }, { key: "p3", name: "Outros" }],
-  incomeCategories: ["Salário", "Freelance", "Rendimentos", "Reembolso", "Outros"],
-  expenseCategories: ["Moradia", "Alimentação", "Transporte", "Saúde", "Educação", "Lazer", "Assinaturas", "Compras", "Cuidado pessoal", "Pets", "Outros"],
-  banks: ["Nubank", "Itaú", "Bradesco", "Caixa", "Banco do Brasil", "Inter", "Carteira"],
-  investmentCategories: ["Renda fixa", "Renda variável", "Fundos", "Cripto", "Previdência", "Outros"],
-  goalCategories: ["Reserva de emergência", "Viagem", "Compra grande", "Educação", "Presente", "Outros"],
-  budgetLimits: {},
-  transactions: [],
-  // Histórico legado preservado no estado para não apagar dados do Firebase; a interface não utiliza mais bills.
-  bills: [],
-  cards: [],
-  cardPurchases: [],
-  investments: [],
-  goals: [],
-  netWorthHistory: [],
-  paidStatements: {},
 };
 
 const firebaseConfig = {
@@ -1063,28 +1044,6 @@ function GoalsSection({ data, profileFilter, profileName, setModal, removeItem, 
           );
         })}
       </div>
-    </div>
-  );
-}
-
-function SettingsTab({ data, setData, showToast, skipNextSave, setModal, savedPin, setSavedPin, db, appId }) {
-  const fileRef = useRef(null);
-  const exportData = () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })); a.download = `backup-${todayStr()}.json`; a.click(); showToast("Exportado"); };
-  const importData = (e) => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = () => { try { skipNextSave.current = false; setData({ ...DEFAULT_STATE, ...JSON.parse(r.result) }); showToast("Importado"); } catch(ex) { showToast("Erro"); } }; r.readAsText(f); e.target.value = ""; };
-  const handleRestoreCloud = async () => {
-    if (!db) return;
-    try {
-      const backupRef = doc(db, 'artifacts', appId, 'public', 'data', 'finances', 'shared_state_backup_weekly');
-      const snap = await getDoc(backupRef);
-      if (snap.exists()) { skipNextSave.current = false; setData(snap.data()); showToast("Nuvem restaurada!"); } else { showToast("Sem backup na nuvem"); }
-    } catch(e) { showToast("Erro na nuvem"); }
-  };
-  return (
-    <div className="max-w-4xl">
-      <SectionTitle subtitle="Preferências">Ajustes</SectionTitle>
-      <Card className="p-7 mb-6"><p className="text-base font-bold mb-3">PIN de Segurança</p><div className="flex gap-3"><Btn variant="couple" onClick={() => { localStorage.setItem(PIN_KEY, "0403"); setSavedPin("0403"); showToast("PIN redefinido para 0403"); }}>Redefinir PIN (0403)</Btn><Btn variant="danger" onClick={() => { localStorage.removeItem(PIN_KEY); setSavedPin(""); showToast("Removido"); }}>Remover PIN</Btn></div></Card>
-      <Card className="p-7 mb-6"><p className="text-base font-bold mb-3">Perfis</p><div className="grid grid-cols-2 gap-4">{(data.profiles || []).map((p) => <input key={p.key} className={inputCls} style={inputStyle} value={p.name} onChange={(e) => setData(pr => ({ ...pr, profiles: (pr.profiles || []).map(prr => prr.key === p.key ? { ...prr, name: e.target.value } : prr) }))} />)}</div></Card>
-      <Card className="p-7"><p className="text-base font-bold mb-3">Backup de Dados</p><div className="flex gap-4"><Btn variant="couple" onClick={exportData}><Download size={16} /> Exportar Backup Manual</Btn><Btn variant="ghost" onClick={handleRestoreCloud}><Upload size={16} /> Restaurar Nuvem</Btn><Btn variant="ghost" onClick={() => fileRef.current?.click()}><Upload size={16} /> Restaurar Arquivo</Btn><input ref={fileRef} type="file" accept="application/json" className="hidden" onChange={importData} /></div></Card>
     </div>
   );
 }
