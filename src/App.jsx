@@ -34,6 +34,7 @@ const ALERT_BORDER = "var(--c-alert-border, #E6C9C0)";
 const MUTED_PANEL = "var(--c-muted-panel, #E9E5D6)";
 const FELIPE = "var(--c-felipe, #1D5FE0)";
 const SARA = "var(--c-sara, #9B1FC7)";
+const OTHER = "var(--c-other, #C62828)";
 
 const PAPER_TINT = `color-mix(in srgb, ${COUPLE} 3%, ${PAPER})`;
 const SURFACE_TINT = `color-mix(in srgb, ${COUPLE} 2%, ${SURFACE})`;
@@ -47,7 +48,7 @@ const THEMES = {
     "--c-muted": "#6E6E63", "--c-border": "#E2DFD2", "--c-border-soft": "#D1CEC0",
     "--c-income-bg": "#E5EFEB", "--c-expense-bg": "#F5E4E0", "--c-panel": "#EEECE1",
     "--c-alert-bg": "#FCEFEB", "--c-alert-border": "#E4C5BC", "--c-muted-panel": "#E5E1D0",
-    "--c-felipe": "#1D5FE0", "--c-sara": "#9B1FC7",
+    "--c-felipe": "#1D5FE0", "--c-sara": "#9B1FC7", "--c-other": "#C62828",
   },
   dark: {
     "--c-ink": "#F0EDE2", "--c-paper": "#12140F", "--c-surface": "#1B1D15",
@@ -56,7 +57,7 @@ const THEMES = {
     "--c-muted": "#A3A293", "--c-border": "#2E3125", "--c-border-soft": "#3A3D2F",
     "--c-income-bg": "#19281F", "--c-expense-bg": "#33221C", "--c-panel": "#20231A",
     "--c-alert-bg": "#33241D", "--c-alert-border": "#543A2F", "--c-muted-panel": "#26291E",
-    "--c-felipe": "#4C8DFF", "--c-sara": "#D64CF0",
+    "--c-felipe": "#4C8DFF", "--c-sara": "#D64CF0", "--c-other": "#EF5350",
   },
 };
 
@@ -65,6 +66,7 @@ function profileColor(data, profileKey) {
   const idx = data.profiles.findIndex((p) => p.key === profileKey);
   if (idx === 0) return FELIPE;
   if (idx === 1) return SARA;
+  if (profileKey === "p3") return OTHER;
   return COUPLE;
 }
 
@@ -101,8 +103,8 @@ const addMonths = (m, delta) => {
 
 const DEFAULT_STATE = {
   lastAutoBackup: 0,
-  initialBalances: { p1: 0, p2: 0 },
-  profiles: [{ key: "p1", name: "Felipe" }, { key: "p2", name: "Sara" }],
+  initialBalances: { p1: 0, p2: 0, p3: 0 },
+  profiles: [{ key: "p1", name: "Felipe" }, { key: "p2", name: "Sara" }, { key: "p3", name: "Outros" }],
   incomeCategories: ["Salário", "Freelance", "Rendimentos", "Reembolso", "Outros"],
   expenseCategories: ["Moradia", "Alimentação", "Transporte", "Saúde", "Educação", "Lazer", "Assinaturas", "Compras", "Cuidado pessoal", "Pets", "Outros"],
   banks: ["Nubank", "Itaú", "Bradesco", "Caixa", "Banco do Brasil", "Inter", "Carteira"],
@@ -357,7 +359,13 @@ export default function App() {
     const unsubscribe = onSnapshot(docRef, async (snapshot) => {
       if (snapshot.exists()) {
         const serverData = snapshot.data();
-        setData({ ...DEFAULT_STATE, ...serverData });
+        const profiles = Array.isArray(serverData.profiles) && serverData.profiles.length
+          ? serverData.profiles.some((p) => p.key === "p3")
+            ? serverData.profiles
+            : [...serverData.profiles, { key: "p3", name: "Outros" }]
+          : DEFAULT_STATE.profiles;
+        const initialBalances = { ...DEFAULT_STATE.initialBalances, ...(serverData.initialBalances || {}) };
+        setData({ ...DEFAULT_STATE, ...serverData, profiles, initialBalances });
         setReady(true);
         setSyncStatus("synced");
       } else {
@@ -429,6 +437,7 @@ export default function App() {
   }
 
   const profileName = (key) => (data.profiles || []).find((p) => p.key === key)?.name || key;
+  const isOtherProfile = profileFilter === "p3";
 
   const NAV = [
     { key: "dashboard", label: "Início", icon: LayoutDashboard },
@@ -443,7 +452,8 @@ export default function App() {
     { key: "settings", label: "Ajustes", icon: Settings },
   ];
   const ALL_NAV = [...NAV, ...MORE_NAV];
-  const activeMeta = ALL_NAV.find((n) => n.key === tab);
+  const PROFILE_NAV = isOtherProfile ? NAV.filter((n) => ["dashboard", "transactions", "bills"].includes(n.key)) : ALL_NAV;
+  const activeMeta = PROFILE_NAV.find((n) => n.key === tab) || ALL_NAV.find((n) => n.key === tab);
 
   const accentStyle = {};
   if (profileFilter !== "all") {
@@ -454,6 +464,9 @@ export default function App() {
     } else if (idx === 1) {
       accentStyle["--c-couple"] = "var(--c-sara)";
       accentStyle["--c-couple-grad"] = theme === "dark" ? "linear-gradient(135deg, #EC4899, #7C3AED)" : "linear-gradient(135deg, #9333EA, #F472B6)";
+    } else if (data.profiles[idx]?.key === "p3") {
+      accentStyle["--c-couple"] = "var(--c-other)";
+      accentStyle["--c-couple-grad"] = theme === "dark" ? "linear-gradient(135deg, #B71C1C, #EF5350)" : "linear-gradient(135deg, #B71C1C, #EF5350)";
     }
   } else {
     accentStyle["--c-couple-grad"] = theme === "dark" ? "linear-gradient(135deg, #4C8DFF, #D64CF0)" : "linear-gradient(135deg, #1D5FE0, #9B1FC7)";
@@ -487,8 +500,12 @@ export default function App() {
       {(data.profiles || []).map((p, idx) => {
         const color = profileColor(data, p.key);
         const isActive = profileFilter === p.key;
-        const activeGrad = idx === 0 ? (theme === "dark" ? "linear-gradient(135deg, #3B82F6, #1E40AF)" : "linear-gradient(135deg, #2563EB, #93C5FD)") : (theme === "dark" ? "linear-gradient(135deg, #EC4899, #7C3AED)" : "linear-gradient(135deg, #9333EA, #F472B6)");
-        return <button key={p.key} onClick={() => setProfileFilter(p.key)} className={`px-4 py-2 rounded-full text-xs font-bold border shrink-0 cursor-pointer shadow-sm transition-all hover:opacity-90 ${vertical ? "text-left" : ""}`} style={isActive ? { background: activeGrad, color: "#fff", borderColor: color } : { borderColor: BORDER_SOFT, color: INK, backgroundColor: SURFACE }}>{p.name}</button>;
+        const activeGrad = idx === 0
+          ? (theme === "dark" ? "linear-gradient(135deg, #3B82F6, #1E40AF)" : "linear-gradient(135deg, #2563EB, #93C5FD)")
+          : idx === 1
+            ? (theme === "dark" ? "linear-gradient(135deg, #EC4899, #7C3AED)" : "linear-gradient(135deg, #9333EA, #F472B6)")
+            : (theme === "dark" ? "linear-gradient(135deg, #B71C1C, #EF5350)" : "linear-gradient(135deg, #B71C1C, #EF5350)");
+        return <button key={p.key} onClick={() => { setProfileFilter(p.key); if (p.key === "p3" && !["dashboard", "transactions", "bills"].includes(tab)) setTab("dashboard"); }} className={`px-4 py-2 rounded-full text-xs font-bold border shrink-0 cursor-pointer shadow-sm transition-all hover:opacity-90 ${vertical ? "text-left" : ""}`} style={isActive ? { background: activeGrad, color: "#fff", borderColor: color } : { borderColor: BORDER_SOFT, color: INK, backgroundColor: SURFACE }}>{p.name}</button>;
       })}
     </div>
   );
@@ -510,7 +527,7 @@ export default function App() {
             <div className="mb-6">{profileChips(true)}</div>
             <div className="my-6 border-t" style={{ borderColor: BORDER }} />
             <div className="flex flex-col gap-2">
-              {ALL_NAV.map((n) => (
+              {PROFILE_NAV.map((n) => (
                 <button key={n.key} onClick={() => setTab(n.key)} className="flex items-center gap-3.5 px-4 py-3.5 rounded-2xl text-sm font-bold text-left cursor-pointer transition-all duration-200" style={tab === n.key ? { background: accentStyle["--c-couple-grad"] || "var(--c-couple-grad)", color: "#fff", boxShadow: "0 4px 16px rgba(107, 63, 202, 0.3)" } : { color: MUTED }}>
                   <n.icon size={20} />{n.label}
                 </button>
@@ -552,13 +569,13 @@ export default function App() {
       <GlobalFAB setModal={setModal} isDesktop={false} />
       <div className="fixed bottom-0 left-0 right-0 z-30 flex justify-center pointer-events-none">
         <div className="w-full pointer-events-auto border-t pb-safe shadow-[0_-6px_24px_rgba(0,0,0,0.08)] backdrop-blur-xl" style={{ borderColor: BORDER, backgroundColor: PANEL_TINT }}>
-          <div className="grid grid-cols-5 max-w-md mx-auto">
-            {NAV.map((n) => <NavBtn key={n.key} n={n} active={tab === n.key} onClick={() => { setTab(n.key); setMoreOpen(false); }} accentColor={accentStyle["--c-couple"] || COUPLE} />)}
-            <button onClick={() => setMoreOpen((v) => !v)} className="flex flex-col items-center justify-center gap-1 py-3 cursor-pointer transition-colors" style={{ color: MORE_NAV.some((n) => n.key === tab) ? (accentStyle["--c-couple"] || COUPLE) : MUTED, borderTop: MORE_NAV.some((n) => n.key === tab) ? `3px solid ${accentStyle["--c-couple"] || COUPLE}` : "3px solid transparent" }}><MoreHorizontal size={22} /><span className="text-[10px] font-bold tracking-wide">Mais</span></button>
+          <div className={`grid ${isOtherProfile ? "grid-cols-3" : "grid-cols-5"} max-w-md mx-auto">
+            {(isOtherProfile ? NAV.filter((n) => ["dashboard", "transactions", "bills"].includes(n.key)) : NAV).map((n) => <NavBtn key={n.key} n={n} active={tab === n.key} onClick={() => { setTab(n.key); setMoreOpen(false); }} accentColor={accentStyle["--c-couple"] || COUPLE} />)}
+            {!isOtherProfile && <button onClick={() => setMoreOpen((v) => !v)} className="flex flex-col items-center justify-center gap-1 py-3 cursor-pointer transition-colors" style={{ color: MORE_NAV.some((n) => n.key === tab) ? (accentStyle["--c-couple"] || COUPLE) : MUTED, borderTop: MORE_NAV.some((n) => n.key === tab) ? `3px solid ${accentStyle["--c-couple"] || COUPLE}` : "3px solid transparent" }}><MoreHorizontal size={22} /><span className="text-[10px] font-bold tracking-wide">Mais</span></button>
           </div>
         </div>
       </div>
-      {moreOpen && (
+      {moreOpen && !isOtherProfile && (
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 backdrop-blur-sm animate-in fade-in" onClick={() => setMoreOpen(false)}>
           <div className="w-full rounded-t-3xl p-6 pb-12 shadow-2xl animate-in slide-in-from-bottom-8 border-t" style={{ backgroundColor: PANEL_TINT, borderColor: BORDER, maxWidth: 640 }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4 px-2"><span className="text-xs font-bold uppercase tracking-wider" style={{ color: MUTED }}>Menu de Ferramentas</span><button onClick={() => setMoreOpen(false)} className="w-8 h-8 rounded-full flex items-center justify-center shadow-sm" style={{ border: `1px solid ${BORDER_SOFT}`, color: INK, backgroundColor: SURFACE }}><X size={16}/></button></div>
@@ -655,7 +672,7 @@ function BudgetsTab({ data, month, setData, showToast }) {
 }
 
 function Dashboard({ data, month, profileFilter, profileName, setTab, setModal, setData, showToast }) {
-  const monthTx = (data.transactions || []).filter((t) => t.date && t.date.startsWith(month) && (profileFilter === "all" || t.profileKey === profileFilter));
+  const monthTx = (data.transactions || []).filter((t) => t.date && t.date.startsWith(month) && (profileFilter === "all" ? (t.profileKey === "p1" || t.profileKey === "p2") : t.profileKey === profileFilter));
   const income = monthTx.filter((t) => t.direction === "in").reduce((s, t) => s + Number(t.amount), 0);
   const expense = monthTx.filter((t) => t.direction === "out").reduce((s, t) => s + Number(t.amount), 0);
   const monthNet = income - expense;
@@ -669,7 +686,7 @@ function Dashboard({ data, month, profileFilter, profileName, setTab, setModal, 
   };
 
   const realBalance = profileFilter === "all" 
-    ? (data.profiles || []).reduce((acc, p) => acc + getCumulativeForProfile(p.key), 0)
+    ? (data.profiles || []).filter((p) => p.key === "p1" || p.key === "p2").reduce((acc, p) => acc + getCumulativeForProfile(p.key), 0)
     : getCumulativeForProfile(profileFilter);
 
   const handleEditInitialBalance = () => {
@@ -693,7 +710,7 @@ function Dashboard({ data, month, profileFilter, profileName, setTab, setModal, 
   const pieData = Object.entries(catMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
   const PIE_COLORS = ["#A6432E", "#6B3FCA", "#3B5A73", "#3F7D5C", "#7A7A6F", "#8C5B3F", "#5C4B7A", "#6B7A3F"];
 
-  const splitByProfile = (data.profiles || []).map((p) => {
+  const splitByProfile = (data.profiles || []).filter((p) => p.key === "p1" || p.key === "p2").map((p) => {
     const tx = (data.transactions || []).filter((t) => t.date && t.date.startsWith(month) && t.profileKey === p.key);
     return { name: p.name, receitas: tx.filter((t) => t.direction === "in").reduce((s, t) => s + Number(t.amount), 0), despesas: tx.filter((t) => t.direction === "out").reduce((s, t) => s + Number(t.amount), 0) };
   });
@@ -759,7 +776,7 @@ function Dashboard({ data, month, profileFilter, profileName, setTab, setModal, 
 
 function TransactionsTab({ data, month, profileFilter, profileName, setModal, removeItem, addItem, showToast }) {
   const [search, setSearch] = useState(""); const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const items = (data.transactions || []).filter((t) => t.date && t.date.startsWith(month) && (profileFilter === "all" || t.profileKey === profileFilter)).filter((t) => !search.trim() || t.description.toLowerCase().includes(search.trim().toLowerCase()) || t.category.toLowerCase().includes(search.trim().toLowerCase())).sort((a, b) => b.date.localeCompare(a.date));
+  const items = (data.transactions || []).filter((t) => t.date && t.date.startsWith(month) && (profileFilter === "all" ? (t.profileKey === "p1" || t.profileKey === "p2") : t.profileKey === profileFilter)).filter((t) => !search.trim() || t.description.toLowerCase().includes(search.trim().toLowerCase()) || t.category.toLowerCase().includes(search.trim().toLowerCase())).sort((a, b) => b.date.localeCompare(a.date));
   return (
     <div>
       <div className="flex items-center justify-between mb-4"><SectionTitle subtitle={`${items.length} registros`}>Lançamentos</SectionTitle></div>
@@ -785,7 +802,7 @@ function TransactionsTab({ data, month, profileFilter, profileName, setModal, re
 
 function BillsTab({ data, month, profileFilter, profileName, setModal, removeItem, updateItem, addItem, showToast }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const items = (data.bills || []).filter((b) => b.dueDate && b.dueDate.startsWith(month) && (profileFilter === "all" || b.profileKey === profileFilter)).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  const items = (data.bills || []).filter((b) => b.dueDate && b.dueDate.startsWith(month) && (profileFilter === "all" ? (b.profileKey === "p1" || b.profileKey === "p2") : b.profileKey === profileFilter)).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   const statusMeta = { pending: { label: "Pendente", color: COUPLE }, paid: { label: "Paga", color: INCOME }, late: { label: "Atrasada", color: EXPENSE } };
   return (
     <div>
@@ -831,7 +848,7 @@ function installmentsForCardMonth(cardPurchases, card, month) {
 
 function CardsTab({ data, month, profileFilter, profileName, setModal, removeItem, paidStatements, togglePaidStatement }) {
   const [confirmDeleteCardId, setConfirmDeleteCardId] = useState(null); const [confirmDeletePurchaseId, setConfirmDeletePurchaseId] = useState(null);
-  const cards = (data.cards || []).filter((c) => profileFilter === "all" || c.profileKey === profileFilter);
+  const cards = (data.cards || []).filter((c) => profileFilter === "all" ? (c.profileKey === "p1" || c.profileKey === "p2") : c.profileKey === profileFilter);
   return (
     <div>
       <div className="flex items-center justify-between mb-5"><SectionTitle subtitle={`${cards.length} cartões`}>Cartões</SectionTitle><Btn variant="couple" onClick={() => setModal({ type: "card" })}><Plus size={16} /> Novo</Btn></div>
@@ -878,7 +895,7 @@ function CardsTab({ data, month, profileFilter, profileName, setModal, removeIte
 
 function InvestmentsTab({ data, profileFilter, profileName, setModal, removeItem, updateItem, showToast, setData }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const items = (data.investments || []).filter((i) => profileFilter === "all" || i.profileKey === profileFilter);
+  const items = (data.investments || []).filter((i) => profileFilter === "all" ? (i.profileKey === "p1" || i.profileKey === "p2") : i.profileKey === profileFilter);
   const invested = items.reduce((s, i) => s + Number(i.investedAmount), 0); const market = items.reduce((s, i) => s + Number(i.marketValue), 0);
   const gain = market - invested; const gainPct = invested > 0 ? (gain / invested) * 100 : 0;
   const history = data.netWorthHistory || [];
@@ -914,7 +931,7 @@ function InvestmentsTab({ data, profileFilter, profileName, setModal, removeItem
 }
 
 function GoalsSection({ data, profileFilter, profileName, setModal, removeItem, updateItem, showToast }) {
-  const items = (data.goals || []).filter((g) => profileFilter === "all" || g.profileKey === profileFilter);
+  const items = (data.goals || []).filter((g) => profileFilter === "all" ? (g.profileKey === "p1" || g.profileKey === "p2") : g.profileKey === g.profileKey);
   return (
     <div className="pt-8 mt-8 border-t-2 border-dashed" style={{ borderColor: BORDER }}>
       <div className="flex items-center justify-between mb-6"><h3 className="text-xl font-bold">Caixinhas de Objetivos</h3><Btn variant="couple" onClick={() => setModal({ type: "goal" })}><Plus size={16} /> Nova</Btn></div>
