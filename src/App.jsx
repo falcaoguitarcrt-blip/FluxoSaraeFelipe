@@ -1191,19 +1191,35 @@ function CardPurchaseForm({ modal, onClose, data, addItem, updateItem, defaultPr
 }
 function InvestmentForm({ modal, onClose, data, addItem, updateItem, defaultProfile, showToast }) {
   const editing = modal.item;
-  const [description, setDescription] = useState(editing?.description || ""); const [investedAmount, setInvestedAmount] = useState(editing?.investedAmount ?? "");
   const [profileKey, setProfileKey] = useState(editing?.profileKey || defaultProfile || "");
-  const save = () => { if (!profileKey || !description || !investedAmount) return; const p = { profileKey, description, category: (data.investmentCategories || [])[0], institution: "XP", investedAmount: Number(investedAmount), marketValue: Number(investedAmount) }; if (editing) updateItem("investments", editing.id, p); else addItem("investments", p); showToast("Salvo"); onClose(); };
+  const [description, setDescription] = useState(editing?.description || "");
+  const categories = getProfileCatalog(data, "investmentCategoryCatalog", profileKey);
+  const institutions = (data.investmentInstitutions || []).filter((i) => i.active !== false).sort((a, b) => a.name.localeCompare(b.name));
+  const [categoryId, setCategoryId] = useState(editing?.categoryId || categories[0]?.id || "");
+  const [institutionId, setInstitutionId] = useState(editing?.institutionId || institutions[0]?.id || "");
+  const [investedAmount, setInvestedAmount] = useState(editing?.investedAmount ?? "");
+  const [marketValue, setMarketValue] = useState(editing?.marketValue ?? "");
+  useEffect(() => { const list = getProfileCatalog(data, "investmentCategoryCatalog", profileKey); setCategoryId((c) => list.some((x) => x.id === c) ? c : (list[0]?.id || "")); }, [profileKey, data]);
+  useEffect(() => { const list = (data.investmentInstitutions || []).filter((i) => i.active !== false); setInstitutionId((i) => list.some((x) => x.id === i) ? i : (list[0]?.id || "")); }, [data.investmentInstitutions]);
+  const save = () => {
+    const category = getProfileCatalog(data, "investmentCategoryCatalog", profileKey, true).find((c) => c.id === categoryId);
+    const institution = (data.investmentInstitutions || []).find((i) => i.id === institutionId);
+    if (!profileKey || !description.trim() || !investedAmount || !category || !institution) { showToast("Preencha perfil, ativo, categoria, instituição e valor"); return; }
+    const p = { profileKey, description: description.trim(), category: category.name, categoryId: category.id, institution: institution.name, institutionId: institution.id, investedAmount: Number(investedAmount), marketValue: marketValue === "" ? Number(investedAmount) : Number(marketValue) };
+    if (editing) updateItem("investments", editing.id, p); else addItem("investments", p);
+    showToast("Investimento salvo");
+    onClose();
+  };
   return (
-    <Modal title="Ativo de Investimento" onClose={onClose}>
-      <Field label="Perfil responsável"><select className={inputCls} style={inputStyle} value={profileKey} onChange={(e) => setProfileKey(e.target.value)}>{(data.profiles || []).filter((p) => p.key === "p1" || p.key === "p2").map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}</select></Field>
+    <Modal title={editing ? "Editar Investimento" : "Novo Investimento"} onClose={onClose}>
+      <Field label="Perfil responsável"><select className={inputCls} style={inputStyle} value={profileKey} onChange={(e) => setProfileKey(e.target.value)}><option value="">Selecione o perfil...</option>{(data.profiles || []).filter((p) => p.key === "p1" || p.key === "p2").map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}</select></Field>
       <Field label="Nome do Ativo"><input className={inputCls} style={inputStyle} value={description} onChange={(e) => setDescription(e.target.value)} autoFocus /></Field>
-      <Field label="Valor Investido (R$)"><input type="number" step="0.01" className={inputCls} style={inputStyle} value={investedAmount} onChange={(e) => setInvestedAmount(e.target.value)} /></Field>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Field label="Categoria"><select className={inputCls} style={inputStyle} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field><Field label="Instituição"><select className={inputCls} style={inputStyle} value={institutionId} onChange={(e) => setInstitutionId(e.target.value)}>{institutions.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}</select></Field></div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Field label="Valor Investido (R$)"><input type="number" step="0.01" className={inputCls} style={inputStyle} value={investedAmount} onChange={(e) => setInvestedAmount(e.target.value)} /></Field><Field label="Valor Atual (R$)"><input type="number" step="0.01" className={inputCls} style={inputStyle} value={marketValue} onChange={(e) => setMarketValue(e.target.value)} /></Field></div>
       <Btn variant="couple" className="w-full justify-center mt-2 py-3" onClick={save}>Salvar</Btn>
     </Modal>
   );
 }
-
 function GoalForm({ modal, onClose, data, addItem, updateItem, defaultProfile, showToast }) {
   const editing = modal.item;
   const [name, setName] = useState(editing?.name || ""); const [targetAmount, setTargetAmount] = useState(editing?.targetAmount ?? "");
