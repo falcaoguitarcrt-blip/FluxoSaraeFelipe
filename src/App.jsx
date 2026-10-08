@@ -593,7 +593,7 @@ export default function App() {
       {moreOpen && !isOtherProfile && (
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 backdrop-blur-sm animate-in fade-in" onClick={() => setMoreOpen(false)}>
           <div className="w-full rounded-t-3xl p-6 pb-12 shadow-2xl animate-in slide-in-from-bottom-8 border-t" style={{ backgroundColor: PANEL_TINT, borderColor: BORDER, maxWidth: 640 }} onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4 px-2"><span className="text-xs font-bold uppercase tracking-wider" style={{ color: MUTED }}>Menu de Ferramentas</span><button onClick={() => setMoreOpen(false)} className="w-8 h-8 rounded-full flex items-center justify-center shadow-sm" style={{ border: `1px solid ${BORDER_SOFT}`, color: INK, backgroundColor: SURFACE }}><X size={16}/></button></div>
+            <div className="flex items-center justify-between mb-4 px-2"><span className="text-xs font-bold uppercase tracking-wider" style={{ color: MUTED }}>Menu de Ferramentas</span><button onClick={() => setMoreOpen(false)} className="w-8 h-8 rounded-full flex items-center justify-center shadow-sm" style={{ border: "1px solid " + BORDER_SOFT, color: INK, backgroundColor: SURFACE }}><X size={16}/></button></div>
             <div className="grid grid-cols-2 gap-3">
               {MORE_NAV.map((n) => (
                 <button key={n.key} onClick={() => { setTab(n.key); setMoreOpen(false); }} className="flex items-center gap-3 p-4 rounded-2xl cursor-pointer shadow-sm border active:scale-95 transition-all text-left" style={{ color: tab === n.key ? (accentStyle["--c-couple"] || COUPLE) : INK, borderColor: BORDER, backgroundColor: SURFACE }}>
