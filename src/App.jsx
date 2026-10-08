@@ -127,7 +127,8 @@ const DEFAULT_STATE = {
   goalCategories: ["Reserva de emergência", "Viagem", "Compra grande", "Educação", "Presente", "Outros"],
   budgetLimits: {},
   transactions: [],
-  // Histórico legado preservado no estado para não apagar dados do Firebase; a interface não utiliza mais bills.\n  bills: [],\n  cards: [],
+  // Histórico legado preservado no estado para não apagar dados do Firebase; a interface não utiliza mais bills.
+  bills: [],\n  cards: [],
   cardPurchases: [],
   investments: [],
   goals: [],
