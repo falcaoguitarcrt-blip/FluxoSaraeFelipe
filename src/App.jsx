@@ -1124,34 +1124,38 @@ function TransactionForm({ modal, onClose, data, addItem, updateItem, month, def
 }
 function CardForm({ modal, onClose, data, addItem, updateItem, defaultProfile, showToast }) {
   const editing = modal.item;
+  const [profileKey, setProfileKey] = useState(editing?.profileKey || defaultProfile || "");
   const [name, setName] = useState(editing?.name || "");
-  const [brand, setBrand] = useState(editing?.brand || "");
+  const brands = (data.cardBrands || []).filter((b) => b.active !== false);
+  const institutions = (data.financialInstitutions || []).filter((i) => i.active !== false).sort((a, b) => a.name.localeCompare(b.name));
+  const [brandId, setBrandId] = useState(editing?.brandId || brands[0]?.id || "");
+  const [institutionId, setInstitutionId] = useState(editing?.institutionId || "");
+  const [closingDay, setClosingDay] = useState(editing?.closingDay || 1);
+  const [dueDay, setDueDay] = useState(editing?.dueDay || 10);
   const [color, setColor] = useState(editing?.color || COUPLE);
-  const colors = ["#6B3FCA", "#1D5FE0", "#3B5A73", "#3F7D5C", "#A6432E", "#9B1FC7", "#E2A03F", "#4C8DFF"];
+  const editingBrand = editing?.brandId ? (data.cardBrands || []).find((b) => b.id === editing.brandId) : null;
+  const brandOptions = editingBrand && !brands.some((b) => b.id === editingBrand.id) ? [editingBrand, ...brands] : brands;
   const save = () => {
-    if (!name) return;
-    const p = { profileKey: editing?.profileKey || defaultProfile, name, brand: brand || "Visa", closingDay: 1, dueDay: 10, color };
-    if (editing) updateItem("cards", editing.id, p);
-    else addItem("cards", p);
+    const brand = (data.cardBrands || []).find((b) => b.id === brandId);
+    const institution = (data.financialInstitutions || []).find((i) => i.id === institutionId);
+    if (!profileKey || !name.trim() || !brand) { showToast("Preencha perfil, nome e bandeira"); return; }
+    const p = { profileKey, name: name.trim(), brand: brand.name, brandId: brand.id, institutionId: institution?.id || null, institution: institution?.name || "", closingDay: Number(closingDay), dueDay: Number(dueDay), color, active: true };
+    if (editing) updateItem("cards", editing.id, p); else addItem("cards", p);
     showToast("Cartão salvo");
     onClose();
   };
   return (
     <Modal title={editing ? "Editar Cartão" : "Novo Cartão"} onClose={onClose}>
+      <Field label="Perfil responsável"><select className={inputCls} style={inputStyle} value={profileKey} onChange={(e) => setProfileKey(e.target.value)}><option value="">Selecione o perfil...</option>{(data.profiles || []).filter((p) => p.key === "p1" || p.key === "p2").map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}</select></Field>
       <Field label="Nome do Cartão"><input className={inputCls} style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} autoFocus /></Field>
-      <Field label="Bandeira / Banco"><input className={inputCls} style={inputStyle} value={brand} onChange={(e) => setBrand(e.target.value)} /></Field>
-      <Field label="Cor do Cartão">
-        <div className="flex items-center gap-3 mt-2">
-          {colors.map((c) => (
-            <button key={c} type="button" onClick={() => setColor(c)} className={`w-8 h-8 rounded-full border-2 transition-all cursor-pointer ${color === c ? "scale-110 shadow-md ring-2 ring-offset-2" : "opacity-70"}`} style={{ backgroundColor: c, borderColor: color === c ? INK : "transparent" }} />
-          ))}
-        </div>
-      </Field>
+      <Field label="Bandeira"><select className={inputCls} style={inputStyle} value={brandId} onChange={(e) => setBrandId(e.target.value)}>{brandOptions.map((b) => <option key={b.id} value={b.id}>{b.name}{b.active === false ? " (desativada)" : ""}</option>)}</select></Field>
+      <Field label="Instituição emissora"><select className={inputCls} style={inputStyle} value={institutionId} onChange={(e) => setInstitutionId(e.target.value)}><option value="">Sem instituição definida</option>{institutions.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}</select></Field>
+      <div className="grid grid-cols-2 gap-4"><Field label="Dia de fechamento"><input type="number" min="1" max="31" className={inputCls} style={inputStyle} value={closingDay} onChange={(e) => setClosingDay(e.target.value)} /></Field><Field label="Dia de vencimento"><input type="number" min="1" max="31" className={inputCls} style={inputStyle} value={dueDay} onChange={(e) => setDueDay(e.target.value)} /></Field></div>
+      <Field label="Cor do Cartão"><div className="flex items-center gap-3 mt-2">{["#6B3FCA","#1D5FE0","#3B5A73","#3F7D5C","#A6432E","#9B1FC7","#E2A03F","#4C8DFF"].map((c) => <button key={c} type="button" onClick={() => setColor(c)} className={"w-8 h-8 rounded-full border-2 transition-all cursor-pointer " + (color === c ? "scale-110 shadow-md ring-2 ring-offset-2" : "opacity-70")} style={{ backgroundColor: c, borderColor: color === c ? INK : "transparent" }} />)}</div></Field>
       <Btn variant="couple" className="w-full justify-center mt-2 py-3" onClick={save}>Salvar Cartão</Btn>
     </Modal>
   );
 }
-
 function CardPurchaseForm({ modal, onClose, data, addItem, updateItem, defaultProfile, showToast, month }) {
   const editing = modal.item;
   const [cardId, setCardId] = useState(editing?.cardId || modal.cardId || (data.cards || [])[0]?.id);
