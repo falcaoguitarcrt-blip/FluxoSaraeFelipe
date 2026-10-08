@@ -538,7 +538,7 @@ export default function App() {
         </div>
         <div className="flex-1 min-w-0 flex flex-col relative max-h-screen overflow-hidden">
           <div className="flex items-center justify-between px-8 lg:px-12 pt-8 pb-6 shrink-0 border-b bg-white/40 backdrop-blur-md z-20" style={{ borderColor: BORDER, backgroundColor: `${PANEL_TINT}99` }}>
-            <div><h2 style={{ fontFamily: "'Source Serif 4', serif", color: accentStyle["--c-couple"] || COUPLE }} className="text-2xl font-black">{activeMeta?.label}</h2><p className="text-xs font-medium mt-0.5" style={{ color: MUTED }}>Painel financeiro colaborativo do casal</p></div>
+            <div><h2 style={{ fontFamily: "'Source Serif 4', serif", color: accentStyle["--c-couple"] || COUPLE }} className="text-2xl font-black">{activeMeta?.label}</h2><p className="text-xs font-medium mt-0.5" style={{ color: MUTED }}>{isOtherProfile ? "Painel financeiro independente" : "Painel financeiro colaborativo do casal"}</p></div>
             {monthNavVisible && monthNav}
           </div>
           <div className="flex-1 overflow-y-auto px-8 lg:px-12 py-8 pb-32">{content}</div>
@@ -571,7 +571,7 @@ export default function App() {
         <div className="w-full pointer-events-auto border-t pb-safe shadow-[0_-6px_24px_rgba(0,0,0,0.08)] backdrop-blur-xl" style={{ borderColor: BORDER, backgroundColor: PANEL_TINT }}>
           <div className={`grid ${isOtherProfile ? "grid-cols-3" : "grid-cols-5"} max-w-md mx-auto">
             {(isOtherProfile ? NAV.filter((n) => ["dashboard", "transactions", "bills"].includes(n.key)) : NAV).map((n) => <NavBtn key={n.key} n={n} active={tab === n.key} onClick={() => { setTab(n.key); setMoreOpen(false); }} accentColor={accentStyle["--c-couple"] || COUPLE} />)}
-            {!isOtherProfile && <button onClick={() => setMoreOpen((v) => !v)} className="flex flex-col items-center justify-center gap-1 py-3 cursor-pointer transition-colors" style={{ color: MORE_NAV.some((n) => n.key === tab) ? (accentStyle["--c-couple"] || COUPLE) : MUTED, borderTop: MORE_NAV.some((n) => n.key === tab) ? `3px solid ${accentStyle["--c-couple"] || COUPLE}` : "3px solid transparent" }}><MoreHorizontal size={22} /><span className="text-[10px] font-bold tracking-wide">Mais</span></button>
+            {!isOtherProfile && <button onClick={() => setMoreOpen((v) => !v)} className="flex flex-col items-center justify-center gap-1 py-3 cursor-pointer transition-colors" style={{ color: MORE_NAV.some((n) => n.key === tab) ? (accentStyle["--c-couple"] || COUPLE) : MUTED, borderTop: MORE_NAV.some((n) => n.key === tab) ? `3px solid ${accentStyle["--c-couple"] || COUPLE}` : "3px solid transparent" }}><MoreHorizontal size={22} /><span className="text-[10px] font-bold tracking-wide">Mais</span></button>}
           </div>
         </div>
       </div>
@@ -691,7 +691,7 @@ function Dashboard({ data, month, profileFilter, profileName, setTab, setModal, 
 
   const handleEditInitialBalance = () => {
     if (profileFilter === "all") {
-      showToast("Selecione um perfil específico (Felipe ou Sara) para alterar a base inicial.");
+      showToast("Selecione um perfil específico para alterar a base inicial.");
       return;
     }
     const currentVal = initialBalances[profileFilter] || 0;
