@@ -774,7 +774,6 @@ function Dashboard({ data, month, profileFilter, profileName, setTab, setModal, 
             </Card>
           )}
           {pieData.length > 0 && (
-          {pieData.length > 0 && (
             <Card className="p-6 mb-6">
               <p className="text-sm font-bold uppercase tracking-wider mb-4" style={{ color: MUTED }}>Despesas por Categoria</p>
               <div style={{ height: 240 }}><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={pieData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={95} paddingAngle={3}>{pieData.map((e, i) => <Cell key={e.name} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}</Pie><Tooltip formatter={(v) => fmtCurrency(v)} contentStyle={{ borderRadius: 12, border: 'none', backgroundColor: SURFACE, color: INK }} /></PieChart></ResponsiveContainer></div>
