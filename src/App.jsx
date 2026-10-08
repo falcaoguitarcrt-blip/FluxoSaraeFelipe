@@ -713,40 +713,40 @@ function Dashboard({ data, month, profileFilter, profileName, setTab, setModal, 
               title={profileFilter === "all" ? "Abrir Investimentos do Casal" : `Abrir Investimentos de ${profileName(profileFilter)}`}
               style={{ borderLeft: `5px solid ${profileFilter === "all" ? COUPLE : profileColor(data, profileFilter)}` }}
             >
-              <div className="flex items-center justify-between gap-4 mb-5">
-                <div className="flex items-center gap-2.5 min-w-0">
+              <div className="flex items-start justify-between gap-5 mb-5">
+                <div className="flex items-start gap-2.5 min-w-0 flex-1">
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${profileFilter === "all" ? COUPLE : profileColor(data, profileFilter)}18`, color: profileFilter === "all" ? COUPLE : profileColor(data, profileFilter) }}>
                     <TrendingUp size={19} />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-black uppercase tracking-wider truncate" style={{ color: INK }}>
+                    <p className="text-sm sm:text-base font-black uppercase tracking-wider leading-tight" style={{ color: INK }}>
                       {profileFilter === "all" ? "Patrimônio Investido do Casal" : `Investimentos de ${profileName(profileFilter)}`}
                     </p>
-                    <p className="text-xs font-semibold mt-0.5" style={{ color: MUTED }}>Resumo patrimonial</p>
+                    <p className="text-xs font-semibold mt-1" style={{ color: MUTED }}>Resumo patrimonial</p>
                   </div>
                 </div>
-                <span className="text-xs font-bold shrink-0" style={{ color: profileFilter === "all" ? COUPLE : profileColor(data, profileFilter) }}>Ver investimentos →</span>
+                <span className="text-xs font-bold shrink-0 pt-1 whitespace-nowrap" style={{ color: profileFilter === "all" ? COUPLE : profileColor(data, profileFilter) }}>Ver investimentos →</span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
                 <div className="p-3.5 rounded-xl" style={{ backgroundColor: PANEL }}>
                   <p className="text-[10px] font-black uppercase tracking-wider mb-1" style={{ color: MUTED }}>Investido</p>
-                  <p className="text-lg sm:text-xl font-black"><Money value={investmentSummary.invested} /></p>
+                  <p className="text-base sm:text-xl font-black whitespace-nowrap"><Money value={investmentSummary.invested /></p>
                 </div>
                 <div className="p-3.5 rounded-xl" style={{ backgroundColor: PANEL }}>
                   <p className="text-[10px] font-black uppercase tracking-wider mb-1" style={{ color: MUTED }}>Atual</p>
-                  <p className="text-lg sm:text-xl font-black"><Money value={investmentSummary.market} /></p>
+                  <p className="text-base sm:text-xl font-black whitespace-nowrap"><Money value={investmentSummary.market /></p>
                 </div>
                 <div className="p-3.5 rounded-xl" style={{ backgroundColor: PANEL }}>
                   <p className="text-[10px] font-black uppercase tracking-wider mb-1" style={{ color: investmentSummary.gain > 0 ? INCOME : investmentSummary.gain < 0 ? EXPENSE : MUTED }}>
                     Resultado {investmentSummary.gain > 0 ? "positivo" : investmentSummary.gain < 0 ? "negativo" : "neutro"}
                   </p>
-                  <p className="text-lg sm:text-xl font-black"><Money value={investmentSummary.gain} tone={investmentSummary.gain >= 0 ? "income" : "expense"} /></p>
+                  <p className="text-base sm:text-xl font-black whitespace-nowrap"><Money value={investmentSummary.gain tone={investmentSummary.gain >= 0 ? "income" : "expense"} /></p>
                   <p className="text-[10px] font-bold mt-0.5" style={{ color: investmentSummary.gain >= 0 ? INCOME : EXPENSE }}>{investmentSummary.gain >= 0 ? "+" : ""}{investmentSummary.gainPct.toFixed(1)}%</p>
                 </div>
                 <div className="p-3.5 rounded-xl" style={{ backgroundColor: PANEL }}>
                   <p className="text-[10px] font-black uppercase tracking-wider mb-1" style={{ color: MUTED }}>Ativos</p>
-                  <p className="text-lg sm:text-xl font-black" style={{ color: INK }}>{investmentSummary.count}</p>
+                  <p className="text-base sm:text-xl font-black whitespace-nowrap" style={{ color: INK }}>{investmentSummary.count</p>
                 </div>
               </div>
 
