@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Receipt, CreditCard, TrendingUp,
   Settings, Plus, Trash2, Pencil, X, ChevronLeft, ChevronRight,
   ArrowUpCircle, ArrowDownCircle, Check, Download, Upload, Wallet, AlertCircle,
-  MoreHorizontal, Landmark, Scale, Zap, Sun, Moon, Search, Copy, 
+  Landmark, Scale, Zap, Sun, Moon, Search, Copy, 
   ArrowDownToLine, ArrowUpFromLine, LineChart as LineChartIcon, Lock, KeyRound, ShieldCheck
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from "recharts";
@@ -340,6 +340,7 @@ export default function App() {
   useEffect(() => {
     if (tab === "budgets" || tab === "psalms") setTab("dashboard");
     if (tab === "bills") setTab("transactions");
+    if (profileFilter === "p3" && tab === "settings") setTab("dashboard");
   }, [tab]);
 
 
@@ -465,13 +466,14 @@ export default function App() {
     { key: "transactions", label: "Lançamentos", icon: Receipt },
     { key: "cards", label: "Cartões", icon: CreditCard },
   ];
-  const MORE_NAV = [
+  const PRIMARY_NAV = [
+    ...NAV,
     { key: "investments", label: "Investimentos", icon: TrendingUp },
-    { key: "settings", label: "Ajustes", icon: Settings },
   ];
-  const ALL_NAV = [...NAV, ...MORE_NAV];
-  const PROFILE_NAV = isOtherProfile ? NAV.filter((n) => ["dashboard", "transactions"].includes(n.key)) : ALL_NAV;
-  const activeMeta = PROFILE_NAV.find((n) => n.key === tab) || ALL_NAV.find((n) => n.key === tab);
+  const PROFILE_NAV = isOtherProfile ? NAV.filter((n) => ["dashboard", "transactions"].includes(n.key)) : PRIMARY_NAV;
+  const activeMeta = tab === "settings"
+    ? { key: "settings", label: "Ajustes", icon: Settings }
+    : PROFILE_NAV.find((n) => n.key === tab) || PRIMARY_NAV.find((n) => n.key === tab);
 
   const accentStyle = {};
   if (profileFilter !== "all") {
@@ -527,6 +529,7 @@ export default function App() {
   );
 
   const themeToggleBtn = <button onClick={toggleTheme} className="w-10 h-10 rounded-full flex items-center justify-center border shrink-0 bg-transparent cursor-pointer hover:bg-black/5 transition-all shadow-sm" style={{ borderColor: BORDER_SOFT, color: MUTED, backgroundColor: SURFACE }} title={theme === "light" ? "Modo escuro" : "Modo claro"}>{theme === "light" ? <Moon size={18} /> : <Sun size={18} />}</button>;
+  const settingsBtn = !isOtherProfile ? <button onClick={() => { setTab("settings"); setMoreOpen(false); }} className="w-10 h-10 rounded-full flex items-center justify-center border shrink-0 cursor-pointer hover:bg-black/5 transition-all shadow-sm" style={{ borderColor: BORDER_SOFT, color: accentStyle["--c-couple"] || COUPLE, backgroundColor: SURFACE }} title="Ajustes"><Settings size={18} /></button> : null;
 
   const desktopView = (
       <div className="w-full h-full min-h-screen flex mx-auto transition-colors duration-300" style={{ ...THEMES[theme], ...accentStyle, backgroundColor: PAPER_TINT, color: INK, fontFamily: "'Inter', sans-serif" }}>
@@ -550,7 +553,7 @@ export default function App() {
               ))}
             </div>
           </div>
-          <div className="mt-8 flex justify-between items-center px-1 pt-4 border-t" style={{ borderColor: BORDER }}><span className="text-xs font-semibold" style={{ color: MUTED }}>Modo de Aparência</span>{themeToggleBtn}</div>
+          <div className="mt-8 flex justify-between items-center px-1 pt-4 border-t" style={{ borderColor: BORDER }}><span className="text-xs font-semibold" style={{ color: MUTED }}>Ferramentas</span><div className="flex items-center gap-2">{themeToggleBtn}{settingsBtn}</div></div>
         </div>
         <div className="flex-1 min-w-0 flex flex-col relative max-h-screen overflow-hidden">
           <div className="flex items-center justify-between px-8 lg:px-12 pt-8 pb-6 shrink-0 border-b bg-white/40 backdrop-blur-md z-20" style={{ borderColor: BORDER, backgroundColor: `${PANEL_TINT}99` }}>
@@ -563,8 +566,7 @@ export default function App() {
       </div>
   );
 
-  const mobileNav = isOtherProfile ? NAV.filter((n) => ["dashboard", "transactions"].includes(n.key)) : NAV;
-  const showMobileMore = !isOtherProfile;
+  const mobileNav = isOtherProfile ? NAV.filter((n) => ["dashboard", "transactions"].includes(n.key)) : PRIMARY_NAV;
 
   const mobileView = (
     <div className="w-full min-h-screen flex flex-col relative transition-colors duration-300" style={{ ...THEMES[theme], ...accentStyle, backgroundColor: PAPER_TINT, color: INK, fontFamily: "'Inter', sans-serif" }}>
@@ -579,7 +581,7 @@ export default function App() {
               {syncStatus === "connecting" ? "☁️ Conectando..." : syncStatus === "saving" ? "⏳ Sincronizando..." : syncStatus === "error" ? "⚠️ Erro na Nuvem" : "☁️ Nuvem Sincronizada"}
             </p>
           </div>
-          <div className="flex items-center gap-3">{themeToggleBtn}<div className="flex items-center -space-x-1.5">{(data.profiles || []).map((p) => <ProfileBadge key={p.key} name={p.name} color={profileColor(data, p.key)} />)}</div></div>
+          <div className="flex items-center gap-2">{themeToggleBtn}{settingsBtn}<div className="flex items-center -space-x-1.5 ml-1">{(data.profiles || []).map((p) => <ProfileBadge key={p.key} name={p.name} color={profileColor(data, p.key)} />)}</div></div>
         </div>
         <div className="px-5 pb-3 flex items-center gap-2">{profileChips(false)}</div>
         {monthNavVisible && <div className="px-5 pb-3 flex justify-end">{monthNav}</div>}
@@ -588,26 +590,11 @@ export default function App() {
       <GlobalFAB setModal={setModal} isDesktop={false} isOtherProfile={isOtherProfile} />
       <div className="fixed bottom-0 left-0 right-0 z-30 flex justify-center pointer-events-none">
         <div className="w-full pointer-events-auto border-t pb-safe shadow-[0_-6px_24px_rgba(0,0,0,0.08)] backdrop-blur-xl" style={{ borderColor: BORDER, backgroundColor: PANEL_TINT }}>
-          <div className={isOtherProfile ? "grid grid-cols-3 max-w-md mx-auto" : "grid grid-cols-5 max-w-md mx-auto"}>
-            {mobileNav.map((n) => <NavBtn key={n.key} n={n} active={tab === n.key} onClick={() => { setTab(n.key); setMoreOpen(false); }} accentColor={accentStyle["--c-couple"] || COUPLE} />)}
-            {showMobileMore && <button onClick={() => setMoreOpen((v) => !v)} className="flex flex-col items-center justify-center gap-1 py-3 cursor-pointer transition-colors" style={{ color: MORE_NAV.some((n) => n.key === tab) ? (accentStyle["--c-couple"] || COUPLE) : MUTED, borderTop: MORE_NAV.some((n) => n.key === tab) ? "3px solid " + (accentStyle["--c-couple"] || COUPLE) : "3px solid transparent" }}><MoreHorizontal size={22} /><span className="text-[10px] font-bold tracking-wide">Mais</span></button>}
+          <div className={isOtherProfile ? "grid grid-cols-2 max-w-md mx-auto" : "grid grid-cols-4 max-w-xl mx-auto"}>
+            {mobileNav.map((n) => <NavBtn key={n.key} n={n} active={tab === n.key} onClick={() => setTab(n.key)} accentColor={accentStyle["--c-couple"] || COUPLE} />)}
           </div>
         </div>
       </div>
-      {showMobileMore && moreOpen && (
-        <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 backdrop-blur-sm animate-in fade-in" onClick={() => setMoreOpen(false)}>
-          <div className="w-full rounded-t-3xl p-6 pb-12 shadow-2xl animate-in slide-in-from-bottom-8 border-t" style={{ backgroundColor: PANEL_TINT, borderColor: BORDER, maxWidth: 640 }} onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4 px-2"><span className="text-xs font-bold uppercase tracking-wider" style={{ color: MUTED }}>Menu de Ferramentas</span><button onClick={() => setMoreOpen(false)} className="w-8 h-8 rounded-full flex items-center justify-center shadow-sm" style={{ border: "1px solid " + BORDER_SOFT, color: INK, backgroundColor: SURFACE }}><X size={16}/></button></div>
-            <div className="grid grid-cols-2 gap-3">
-              {MORE_NAV.map((n) => (
-                <button key={n.key} onClick={() => { setTab(n.key); setMoreOpen(false); }} className="flex items-center gap-3 p-4 rounded-2xl cursor-pointer shadow-sm border active:scale-95 transition-all text-left" style={{ color: tab === n.key ? (accentStyle["--c-couple"] || COUPLE) : INK, borderColor: BORDER, backgroundColor: SURFACE }}>
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm" style={{ background: tab === n.key ? (accentStyle["--c-couple-grad"] || "var(--c-couple-grad)") : MUTED_PANEL }}><n.icon size={20} /></div><span className="text-xs font-bold">{n.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
   return (
@@ -1102,7 +1089,7 @@ function SettingsTab({ data, setData, showToast, skipNextSave, setModal, savedPi
 }
 
 function ModalRouter({ modal, onClose, data, setData, addItem, updateItem, removeItem, addCategory, addBank, month, profileFilter, showToast }) {
-  const defaultProfile = profileFilter !== "all" ? profileFilter : (data.profiles && data.profiles[0]?.key);
+  const defaultProfile = profileFilter !== "all" ? profileFilter : undefined;
   if (modal.type === "transaction") return <TransactionForm modal={modal} onClose={onClose} data={data} addItem={addItem} updateItem={updateItem} addBank={addBank} month={month} defaultProfile={defaultProfile} showToast={showToast} />;
   if (modal.type === "card") return <CardForm modal={modal} onClose={onClose} data={data} addItem={addItem} updateItem={updateItem} defaultProfile={defaultProfile} showToast={showToast} />;
   if (modal.type === "cardPurchase") return <CardPurchaseForm modal={modal} onClose={onClose} data={data} addItem={addItem} updateItem={updateItem} defaultProfile={defaultProfile} showToast={showToast} month={month} />;
@@ -1209,9 +1196,11 @@ function CardPurchaseForm({ modal, onClose, data, addItem, updateItem, defaultPr
 function InvestmentForm({ modal, onClose, data, addItem, updateItem, defaultProfile, showToast }) {
   const editing = modal.item;
   const [description, setDescription] = useState(editing?.description || ""); const [investedAmount, setInvestedAmount] = useState(editing?.investedAmount ?? "");
-  const save = () => { if (!description || !investedAmount) return; const p = { profileKey: defaultProfile, description, category: (data.investmentCategories || [])[0], institution: "XP", investedAmount: Number(investedAmount), marketValue: Number(investedAmount) }; if (editing) updateItem("investments", editing.id, p); else addItem("investments", p); showToast("Salvo"); onClose(); };
+  const [profileKey, setProfileKey] = useState(editing?.profileKey || defaultProfile || "");
+  const save = () => { if (!profileKey || !description || !investedAmount) return; const p = { profileKey, description, category: (data.investmentCategories || [])[0], institution: "XP", investedAmount: Number(investedAmount), marketValue: Number(investedAmount) }; if (editing) updateItem("investments", editing.id, p); else addItem("investments", p); showToast("Salvo"); onClose(); };
   return (
     <Modal title="Ativo de Investimento" onClose={onClose}>
+      <Field label="Perfil responsável"><select className={inputCls} style={inputStyle} value={profileKey} onChange={(e) => setProfileKey(e.target.value)}>{(data.profiles || []).filter((p) => p.key === "p1" || p.key === "p2").map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}</select></Field>
       <Field label="Nome do Ativo"><input className={inputCls} style={inputStyle} value={description} onChange={(e) => setDescription(e.target.value)} autoFocus /></Field>
       <Field label="Valor Investido (R$)"><input type="number" step="0.01" className={inputCls} style={inputStyle} value={investedAmount} onChange={(e) => setInvestedAmount(e.target.value)} /></Field>
       <Btn variant="couple" className="w-full justify-center mt-2 py-3" onClick={save}>Salvar</Btn>
