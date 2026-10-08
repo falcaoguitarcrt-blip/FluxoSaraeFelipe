@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
-  LayoutDashboard, Receipt, CalendarClock, CreditCard, TrendingUp,
+  LayoutDashboard, Receipt, CreditCard, TrendingUp,
   Settings, Plus, Trash2, Pencil, X, ChevronLeft, ChevronRight,
   ArrowUpCircle, ArrowDownCircle, Check, Download, Upload, Wallet, AlertCircle,
   MoreHorizontal, Landmark, Scale, Zap, Sun, Moon, Search, Copy, 
@@ -127,8 +127,7 @@ const DEFAULT_STATE = {
   goalCategories: ["Reserva de emergência", "Viagem", "Compra grande", "Educação", "Presente", "Outros"],
   budgetLimits: {},
   transactions: [],
-  bills: [],
-  cards: [],
+  // Histórico legado preservado no estado para não apagar dados do Firebase; a interface não utiliza mais bills.\n  bills: [],\n  cards: [],
   cardPurchases: [],
   investments: [],
   goals: [],
@@ -288,7 +287,7 @@ function PinLockScreen({ onUnlock, savedPin, setSavedPin, theme, toggleTheme }) 
   );
 }
 
-function GlobalFAB({ setModal, isDesktop }) {
+function GlobalFAB({ setModal, isDesktop, isOtherProfile = false }) {
   const [isOpen, setIsOpen] = useState(false);
   const fabRef = useRef(null);
   useEffect(() => {
@@ -299,7 +298,7 @@ function GlobalFAB({ setModal, isDesktop }) {
   const actions = [
     { icon: ArrowUpCircle, label: "Nova Receita", color: INCOME, onClick: () => setModal({ type: "transaction", direction: "in" }) },
     { icon: ArrowDownCircle, label: "Nova Despesa", color: EXPENSE, onClick: () => setModal({ type: "transaction", direction: "out" }) },
-    { icon: CreditCard, label: "Compra Cartão", color: CARD_BLUE, onClick: () => setModal({ type: "cardPurchase" }) },
+    ...(!isOtherProfile ? [{ icon: CreditCard, label: "Compra Cartão", color: CARD_BLUE, onClick: () => setModal({ type: "cardPurchase" }) }] : []),
   ];
   return (
     <div ref={fabRef} className={`fixed ${isDesktop ? 'bottom-8 right-8 absolute' : 'bottom-20 right-4 lg:bottom-8 lg:right-8'} z-40 flex flex-col items-end gap-3`}>
@@ -339,6 +338,7 @@ export default function App() {
 
   useEffect(() => {
     if (tab === "budgets" || tab === "psalms") setTab("dashboard");
+    if (tab === "bills") setTab("transactions");
   }, [tab]);
 
 
@@ -462,7 +462,6 @@ export default function App() {
   const NAV = [
     { key: "dashboard", label: "Início", icon: LayoutDashboard },
     { key: "transactions", label: "Lançamentos", icon: Receipt },
-    { key: "bills", label: "Contas", icon: CalendarClock },
     { key: "cards", label: "Cartões", icon: CreditCard },
   ];
   const MORE_NAV = [
@@ -470,7 +469,7 @@ export default function App() {
     { key: "settings", label: "Ajustes", icon: Settings },
   ];
   const ALL_NAV = [...NAV, ...MORE_NAV];
-  const PROFILE_NAV = isOtherProfile ? NAV.filter((n) => ["dashboard", "transactions", "bills"].includes(n.key)) : ALL_NAV;
+  const PROFILE_NAV = isOtherProfile ? NAV.filter((n) => ["dashboard", "transactions"].includes(n.key)) : ALL_NAV;
   const activeMeta = PROFILE_NAV.find((n) => n.key === tab) || ALL_NAV.find((n) => n.key === tab);
 
   const accentStyle = {};
@@ -494,14 +493,14 @@ export default function App() {
     <div className="w-full max-w-6xl mx-auto animate-in fade-in duration-300">
       {tab === "dashboard" && <Dashboard data={data} month={month} profileFilter={profileFilter} profileName={profileName} setTab={setTab} setModal={setModal} setData={setData} showToast={showToast} />}
       {tab === "transactions" && <TransactionsTab data={data} month={month} profileFilter={profileFilter} profileName={profileName} setModal={setModal} removeItem={removeItem} addItem={addItem} updateItem={updateItem} showToast={showToast} />}
-      {tab === "bills" && <BillsTab data={data} month={month} profileFilter={profileFilter} profileName={profileName} setModal={setModal} removeItem={removeItem} updateItem={updateItem} addItem={addItem} showToast={showToast} />}
+
       {tab === "cards" && <CardsTab data={data} month={month} profileFilter={profileFilter} profileName={profileName} setModal={setModal} removeItem={removeItem} paidStatements={data.paidStatements || {}} togglePaidStatement={(cardId, m) => setData((prev) => { const k = `${cardId}-${m}`; const next = { ...(prev.paidStatements || {}) }; if (next[k]) delete next[k]; else next[k] = true; return { ...prev, paidStatements: next }; })} />}
       {tab === "investments" && <InvestmentsTab data={data} profileFilter={profileFilter} profileName={profileName} setModal={setModal} removeItem={removeItem} updateItem={updateItem} showToast={showToast} setData={setData} />}
       {tab === "settings" && <SettingsTab data={data} setData={setData} showToast={showToast} skipNextSave={skipNextSave} setModal={setModal} savedPin={savedPin} setSavedPin={setSavedPin} db={db} appId={appId} />}
     </div>
   );
 
-  const monthNavVisible = ["dashboard", "transactions", "bills", "cards"].includes(tab);
+  const monthNavVisible = ["dashboard", "transactions", "cards"].includes(tab);
   const monthNav = (
     <div className="flex items-center gap-1 shrink-0 bg-white/70 backdrop-blur-md rounded-full p-1 border shadow-sm" style={{ borderColor: BORDER_SOFT, backgroundColor: SURFACE }}>
       <button onClick={() => setMonth((m) => addMonths(m, -1))} className="p-2 rounded-full hover:bg-black/5 cursor-pointer transition-colors"><ChevronLeft size={16} /></button>
@@ -521,7 +520,7 @@ export default function App() {
           : idx === 1
             ? (theme === "dark" ? "linear-gradient(135deg, #EC4899, #7C3AED)" : "linear-gradient(135deg, #9333EA, #F472B6)")
             : (theme === "dark" ? "linear-gradient(135deg, #B71C1C, #EF5350)" : "linear-gradient(135deg, #B71C1C, #EF5350)");
-        return <button key={p.key} onClick={() => { setProfileFilter(p.key); if (p.key === "p3" && !["dashboard", "transactions", "bills"].includes(tab)) setTab("dashboard"); }} className={`px-4 py-2 rounded-full text-xs font-bold border shrink-0 cursor-pointer shadow-sm transition-all hover:opacity-90 ${vertical ? "text-left" : ""}`} style={isActive ? { background: activeGrad, color: "#fff", borderColor: color } : { borderColor: BORDER_SOFT, color: INK, backgroundColor: SURFACE }}>{p.name}</button>;
+        return <button key={p.key} onClick={() => { setProfileFilter(p.key); if (p.key === "p3" && !["dashboard", "transactions"].includes(tab)) setTab("dashboard"); }} className={`px-4 py-2 rounded-full text-xs font-bold border shrink-0 cursor-pointer shadow-sm transition-all hover:opacity-90 ${vertical ? "text-left" : ""}`} style={isActive ? { background: activeGrad, color: "#fff", borderColor: color } : { borderColor: BORDER_SOFT, color: INK, backgroundColor: SURFACE }}>{p.name}</button>;
       })}
     </div>
   );
@@ -558,12 +557,12 @@ export default function App() {
             {monthNavVisible && monthNav}
           </div>
           <div className="flex-1 overflow-y-auto px-8 lg:px-12 py-8 pb-32">{content}</div>
-          <GlobalFAB setModal={setModal} isDesktop={true} />
+          <GlobalFAB setModal={setModal} isDesktop={true} isOtherProfile={isOtherProfile} />
         </div>
       </div>
   );
 
-  const mobileNav = isOtherProfile ? NAV.filter((n) => ["dashboard", "transactions", "bills"].includes(n.key)) : NAV;
+  const mobileNav = isOtherProfile ? NAV.filter((n) => ["dashboard", "transactions"].includes(n.key)) : NAV;
   const showMobileMore = !isOtherProfile;
 
   const mobileView = (
@@ -585,7 +584,7 @@ export default function App() {
         {monthNavVisible && <div className="px-5 pb-3 flex justify-end">{monthNav}</div>}
       </div>
       <div className="flex-1 px-4 sm:px-6 py-6 pb-32 w-full max-w-3xl mx-auto">{content}</div>
-      <GlobalFAB setModal={setModal} isDesktop={false} />
+      <GlobalFAB setModal={setModal} isDesktop={false} isOtherProfile={isOtherProfile} />
       <div className="fixed bottom-0 left-0 right-0 z-30 flex justify-center pointer-events-none">
         <div className="w-full pointer-events-auto border-t pb-safe shadow-[0_-6px_24px_rgba(0,0,0,0.08)] backdrop-blur-xl" style={{ borderColor: BORDER, backgroundColor: PANEL_TINT }}>
           <div className={isOtherProfile ? "grid grid-cols-3 max-w-md mx-auto" : "grid grid-cols-5 max-w-md mx-auto"}>
@@ -733,160 +732,215 @@ function Dashboard({ data, month, profileFilter, profileName, setTab, setModal, 
 }
 
 function TransactionsTab({ data, month, profileFilter, profileName, setModal, removeItem, addItem, updateItem, showToast }) {
-  const [search, setSearch] = useState(""); const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const items = (data.transactions || []).filter((t) => t.date && t.date.startsWith(month) && (profileFilter === "all" ? (t.profileKey === "p1" || t.profileKey === "p2") : t.profileKey === profileFilter)).filter((t) => !search.trim() || t.description.toLowerCase().includes(search.trim().toLowerCase()) || t.category.toLowerCase().includes(search.trim().toLowerCase())).sort((a, b) => b.date.localeCompare(a.date));
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-4"><SectionTitle subtitle={`${items.length} registros`}>Lançamentos</SectionTitle></div>
-      <div className="relative mb-6"><Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: MUTED }} /><input className={inputCls} style={{ ...inputStyle, paddingLeft: 44 }} placeholder="Buscar..." value={search} onChange={(e) => setSearch(e.target.value)} /></div>
-      {items.length === 0 ? <Card className="p-8"><EmptyState icon={Receipt} title="Nenhum lançamento" /></Card> : (
-        <Card>
-          {items.map((t, i) => (
-            <div key={t.id} className="flex items-center gap-4 px-6 py-4.5 hover:bg-black/5 transition-colors" style={{ borderTop: i > 0 ? `1px solid ${BORDER}` : "none" }}>
-              <div className="flex items-center gap-4 flex-1 min-w-0 cursor-pointer" onClick={() => setModal({ type: "transaction", item: t })}>
-                <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-sm" style={{ backgroundColor: t.direction === "in" ? INCOME_BG : EXPENSE_BG }}>{t.direction === "in" ? <ArrowUpCircle size={20} style={{ color: INCOME }} /> : <ArrowDownCircle size={20} style={{ color: EXPENSE }} />}</div>
-                <div className="flex-1 min-w-0"><p className="text-sm font-bold truncate mb-1">{t.description}</p><p className="text-xs font-semibold truncate" style={{ color: MUTED }}>{t.category} · {fmtDate(t.date)} · <Dot color={profileColor(data, t.profileKey)} />{profileName(t.profileKey)}</p></div>
-              </div>
-               <div className="flex flex-col items-end gap-1.5 shrink-0">
-                 <span className="text-base font-black"><Money value={t.amount} tone={t.direction === "in" ? "income" : "expense"} /></span>
-                 {(() => {
-                   const status = transactionStatusInfo(t);
-                   return <button onClick={() => { updateItem("transactions", t.id, { status: status.nextStatus }); showToast(status.nextStatus === "pending" ? "Marcado como pendente" : status.nextLabel + " com sucesso"); }} className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide border cursor-pointer hover:opacity-80 transition-opacity" style={{ color: status.color, backgroundColor: status.bg, borderColor: status.color + "55" }} title={"Marcar como " + status.nextLabel.toLowerCase()}>{status.label}</button>;
-                 })()}
-               </div>
-              <div className="flex items-center gap-1.5"><button onClick={() => { const { id, ...rest } = t; addItem("transactions", { ...rest, date: todayStr() }); showToast("Duplicado"); }} className="p-2.5 shrink-0 cursor-pointer hover:bg-black/10 rounded-xl" style={{ color: MUTED }}><Copy size={16} /></button><button onClick={() => setConfirmDeleteId(t.id)} className="p-2.5 shrink-0 cursor-pointer hover:bg-black/10 rounded-xl" style={{ color: EXPENSE }}><Trash2 size={16} /></button></div>
-            </div>
-          ))}
-        </Card>
-      )}
-      {confirmDeleteId && <ConfirmDialog title="Excluir?" message="Apagar lançamento permanentemente?" onConfirm={() => { removeItem("transactions", confirmDeleteId); setConfirmDeleteId(null); showToast("Excluído"); }} onClose={() => setConfirmDeleteId(null)} />}
-    </div>
-  );
-}
-
-function BillsTab({ data, month, profileFilter, profileName, setModal, removeItem, updateItem, addItem, showToast }) {
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const items = (data.bills || [])
-    .filter((b) => b.dueDate && b.dueDate.startsWith(month) && (profileFilter === "all" ? (b.profileKey === "p1" || b.profileKey === "p2") : b.profileKey === profileFilter))
-    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
-  const getEffectiveStatus = (bill) => {
-    if (bill.status === "paid") return "paid";
-    if (bill.status === "late") return "late";
-    return bill.dueDate && bill.dueDate < todayStr() ? "late" : "pending";
+  const scopedItems = (data.transactions || [])
+    .filter((t) =>
+      t.date &&
+      t.date.startsWith(month) &&
+      (profileFilter === "all"
+        ? (t.profileKey === "p1" || t.profileKey === "p2")
+        : t.profileKey === profileFilter)
+    );
+
+  const pendingItems = scopedItems.filter((t) => t.status === "pending");
+  const lateItems = scopedItems.filter(
+    (t) => t.direction === "out" && t.status === "pending" && t.date < todayStr()
+  );
+  const paidItems = scopedItems.filter(
+    (t) => t.direction === "out" && (t.status || "paid") === "paid"
+  );
+  const receivedItems = scopedItems.filter(
+    (t) => t.direction === "in" && (t.status || "received") === "received"
+  );
+
+  const summary = {
+    pending: {
+      label: "Pendentes",
+      amount: pendingItems.reduce((s, t) => s + Number(t.amount || 0), 0),
+      count: pendingItems.length,
+      color: COUPLE,
+      bg: PANEL_TINT,
+    },
+    late: {
+      label: "Atrasadas",
+      amount: lateItems.reduce((s, t) => s + Number(t.amount || 0), 0),
+      count: lateItems.length,
+      color: EXPENSE,
+      bg: EXPENSE_BG,
+    },
+    paid: {
+      label: "Pagas",
+      amount: paidItems.reduce((s, t) => s + Number(t.amount || 0), 0),
+      count: paidItems.length,
+      color: INCOME,
+      bg: INCOME_BG,
+    },
+    received: {
+      label: "Recebidos",
+      amount: receivedItems.reduce((s, t) => s + Number(t.amount || 0), 0),
+      count: receivedItems.length,
+      color: INCOME,
+      bg: INCOME_BG,
+    },
   };
 
-  const statusMeta = {
-    pending: { label: "Pendente", color: COUPLE, bg: PANEL_TINT },
-    paid: { label: "Paga", color: INCOME, bg: INCOME_BG },
-    late: { label: "Atrasada", color: EXPENSE, bg: EXPENSE_BG },
+  const filterItems = (items) => {
+    const term = search.trim().toLowerCase();
+    return items
+      .filter((t) => {
+        if (statusFilter === "pending" && t.status !== "pending") return false;
+        if (statusFilter === "late" && !(t.direction === "out" && t.status === "pending" && t.date < todayStr())) return false;
+        if (statusFilter === "paid" && !(t.direction === "out" && (t.status || "paid") === "paid")) return false;
+        if (statusFilter === "received" && !(t.direction === "in" && (t.status || "received") === "received")) return false;
+        return !term ||
+          String(t.description || "").toLowerCase().includes(term) ||
+          String(t.category || "").toLowerCase().includes(term) ||
+          String(t.bank || "").toLowerCase().includes(term);
+      })
+      .sort((a, b) => b.date.localeCompare(a.date));
   };
 
-  const pendingItems = items.filter((b) => getEffectiveStatus(b) === "pending");
-  const paidItems = items.filter((b) => getEffectiveStatus(b) === "paid");
-  const lateItems = items.filter((b) => getEffectiveStatus(b) === "late");
-  const pendingTotal = pendingItems.reduce((s, b) => s + Number(b.amount || 0), 0);
-  const paidTotal = paidItems.reduce((s, b) => s + Number(b.amount || 0), 0);
-  const lateTotal = lateItems.reduce((s, b) => s + Number(b.amount || 0), 0);
+  const items = filterItems(scopedItems);
 
-  const visibleItems = statusFilter === "all"
-    ? items
-    : items.filter((b) => getEffectiveStatus(b) === statusFilter);
+  const toggleFilter = (key) => {
+    setStatusFilter((prev) => (prev === key ? "all" : key));
+  };
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <SectionTitle subtitle="Organize vencimentos sem perder o histórico">Contas a Pagar</SectionTitle>
-        <Btn variant="couple" onClick={() => setModal({ type: "bill" })}><Plus size={16} /> Nova</Btn>
+      <div className="flex items-center justify-between mb-5">
+        <SectionTitle subtitle={`${scopedItems.length} registros no mês`}>Lançamentos</SectionTitle>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <button onClick={() => setStatusFilter(statusFilter === "pending" ? "all" : "pending")} className="text-left cursor-pointer">
-          <Card className="p-5 hover:shadow-md transition-shadow" style={{ borderColor: statusFilter === "pending" ? COUPLE : BORDER }}>
-            <p className="text-[11px] font-black uppercase tracking-wider mb-1" style={{ color: COUPLE }}>Pendentes</p>
-            <p className="text-xl font-black"><Money value={pendingTotal} /></p>
-            <p className="text-xs font-semibold mt-1" style={{ color: MUTED }}>{pendingItems.length} {pendingItems.length === 1 ? "conta" : "contas"}</p>
-          </Card>
-        </button>
-        <button onClick={() => setStatusFilter(statusFilter === "late" ? "all" : "late")} className="text-left cursor-pointer">
-          <Card className="p-5 hover:shadow-md transition-shadow" style={{ borderColor: statusFilter === "late" ? EXPENSE : BORDER }}>
-            <p className="text-[11px] font-black uppercase tracking-wider mb-1" style={{ color: EXPENSE }}>Atrasadas</p>
-            <p className="text-xl font-black"><Money value={lateTotal} tone="expense" /></p>
-            <p className="text-xs font-semibold mt-1" style={{ color: MUTED }}>{lateItems.length} {lateItems.length === 1 ? "conta" : "contas"}</p>
-          </Card>
-        </button>
-        <button onClick={() => setStatusFilter(statusFilter === "paid" ? "all" : "paid")} className="text-left cursor-pointer">
-          <Card className="p-5 hover:shadow-md transition-shadow" style={{ borderColor: statusFilter === "paid" ? INCOME : BORDER }}>
-            <p className="text-[11px] font-black uppercase tracking-wider mb-1" style={{ color: INCOME }}>Pagas</p>
-            <p className="text-xl font-black"><Money value={paidTotal} tone="income" /></p>
-            <p className="text-xs font-semibold mt-1" style={{ color: MUTED }}>{paidItems.length} {paidItems.length === 1 ? "conta" : "contas"}</p>
-          </Card>
-        </button>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mb-5">
+        {["pending", "late", "paid", "received"].map((key) => {
+          const card = summary[key];
+          const active = statusFilter === key;
+          return (
+            <button
+              key={key}
+              onClick={() => toggleFilter(key)}
+              className="text-left cursor-pointer"
+              title={`Filtrar por ${card.label.toLowerCase()}`}
+            >
+              <Card
+                className="p-4 sm:p-5 h-full hover:shadow-md transition-all"
+                style={{
+                  borderColor: active ? card.color : BORDER,
+                  boxShadow: active ? `0 0 0 2px ${card.color}33` : undefined,
+                }}
+              >
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider truncate" style={{ color: card.color }}>
+                    {card.label}
+                  </p>
+                  {active && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: card.color }} />}
+                </div>
+                <p className="text-lg sm:text-xl font-black truncate"><Money value={card.amount} tone={key === "late" || key === "paid" ? "expense" : key === "received" ? "income" : undefined} /></p>
+                <p className="text-xs font-semibold mt-1" style={{ color: MUTED }}>
+                  {card.count} {card.count === 1 ? "lançamento" : "lançamentos"}
+                </p>
+              </Card>
+            </button>
+          );
+        })}
       </div>
 
       {statusFilter !== "all" && (
         <div className="flex items-center justify-between mb-4 px-1">
           <p className="text-xs font-bold uppercase tracking-wider" style={{ color: MUTED }}>
-            Exibindo: {statusMeta[statusFilter].label}
+            Exibindo: {summary[statusFilter].label}
           </p>
           <button onClick={() => setStatusFilter("all")} className="text-xs font-bold underline cursor-pointer" style={{ color: COUPLE }}>
-            Mostrar todas
+            Mostrar todos
           </button>
         </div>
       )}
 
-      {visibleItems.length === 0 ? (
-        <Card className="p-8"><EmptyState icon={CalendarClock} title={statusFilter === "all" ? "Nenhuma conta" : "Nenhuma conta neste status"} hint={statusFilter === "all" ? "Cadastre suas contas para acompanhar vencimentos e pagamentos." : "Altere o filtro acima para visualizar outras contas."} /></Card>
+      <div className="relative mb-6">
+        <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: MUTED }} />
+        <input
+          className={inputCls}
+          style={{ ...inputStyle, paddingLeft: 44 }}
+          placeholder="Buscar..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+
+      {items.length === 0 ? (
+        <Card className="p-8">
+          <EmptyState
+            icon={Receipt}
+            title={statusFilter === "all" ? "Nenhum lançamento" : "Nenhum lançamento neste filtro"}
+            hint={statusFilter === "all" ? "Cadastre suas receitas e despesas nesta área." : "Clique novamente no indicador para voltar a visualizar todos."}
+          />
+        </Card>
       ) : (
         <Card>
-          {visibleItems.map((b, i) => {
-            const effectiveStatus = getEffectiveStatus(b);
-            const meta = statusMeta[effectiveStatus];
-            const isPaid = effectiveStatus === "paid";
-            return (
-              <div key={b.id} className="flex items-center gap-4 px-6 py-4.5 hover:bg-black/5 transition-colors" style={{ borderTop: i > 0 ? "1px solid " + BORDER : "none" }}>
-                <button
-                  onClick={() => {
-                    updateItem("bills", b.id, { status: isPaid ? "pending" : "paid" });
-                    showToast(isPaid ? "Conta marcada como pendente" : "Conta marcada como paga");
-                  }}
-                  className="w-8 h-8 rounded-full border-2 flex items-center justify-center shrink-0 cursor-pointer hover:scale-105 transition-transform"
-                  style={{ borderColor: isPaid ? INCOME : meta.color, backgroundColor: isPaid ? INCOME : "transparent" }}
-                  title={isPaid ? "Voltar para pendente" : "Marcar como paga"}
-                >
-                  {isPaid && <Check size={16} color="#fff" strokeWidth={3} />}
-                </button>
-
-                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setModal({ type: "bill", item: b })}>
-                  <p className="text-sm font-bold truncate mb-1">{b.description}</p>
+          {items.map((t, i) => (
+            <div key={t.id} className="flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-4 hover:bg-black/5 transition-colors" style={{ borderTop: i > 0 ? `1px solid ${BORDER}` : "none" }}>
+              <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0 cursor-pointer" onClick={() => setModal({ type: "transaction", item: t })}>
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-sm" style={{ backgroundColor: t.direction === "in" ? INCOME_BG : EXPENSE_BG }}>
+                  {t.direction === "in"
+                    ? <ArrowUpCircle size={19} style={{ color: INCOME }} />
+                    : <ArrowDownCircle size={19} style={{ color: EXPENSE }} />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold truncate mb-1">{t.description}</p>
                   <p className="text-xs font-semibold truncate" style={{ color: MUTED }}>
-                    Vence {fmtDate(b.dueDate)} · <Dot color={profileColor(data, b.profileKey)} />{b.responsible || profileName(b.profileKey)}
+                    {t.category} · {fmtDate(t.date)} · <Dot color={profileColor(data, t.profileKey)} />{profileName(t.profileKey)}
                   </p>
                 </div>
-
-                <div className="text-right shrink-0">
-                  <div className="text-base font-black"><Money value={b.amount} /></div>
-                  <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide mt-1" style={{ color: meta.color, backgroundColor: meta.bg }}>
-                    {meta.label}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  <button onClick={() => { const { id, ...rest } = b; addItem("bills", { ...rest, dueDate: addMonths(month, 1) + "-" + b.dueDate.slice(8, 10), status: "pending" }); showToast("Duplicado para próximo mês"); }} className="p-2.5 shrink-0 cursor-pointer hover:bg-black/10 rounded-xl" style={{ color: MUTED }} title="Duplicar para o próximo mês"><Copy size={16} /></button>
-                  <button onClick={() => setConfirmDeleteId(b.id)} className="p-2.5 shrink-0 cursor-pointer hover:bg-black/10 rounded-xl" style={{ color: EXPENSE }} title="Excluir conta"><Trash2 size={16} /></button>
-                </div>
               </div>
-            );
-          })}
+
+              <div className="flex flex-col items-end gap-1.5 shrink-0">
+                <span className="text-sm sm:text-base font-black">
+                  <Money value={t.amount} tone={t.direction === "in" ? "income" : "expense"} />
+                </span>
+                {(() => {
+                  const status = transactionStatusInfo(t);
+                  const isLate = t.direction === "out" && t.status === "pending" && t.date < todayStr();
+                  const label = isLate ? "Atrasada" : status.label;
+                  const color = isLate ? EXPENSE : status.color;
+                  const bg = isLate ? EXPENSE_BG : status.bg;
+                  const nextLabel = status.nextLabel;
+                  return (
+                    <button
+                      onClick={() => {
+                        updateItem("transactions", t.id, { status: status.nextStatus });
+                        showToast(status.nextStatus === "pending" ? "Marcado como pendente" : status.nextLabel + " com sucesso");
+                      }}
+                      className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide border cursor-pointer hover:opacity-80 transition-opacity"
+                      style={{ color, backgroundColor: bg, borderColor: color + "55" }}
+                      title={"Marcar como " + nextLabel.toLowerCase()}
+                    >
+                      {label}
+                    </button>
+                  );
+                })()}
+              </div>
+
+              <div className="flex items-center gap-0.5 sm:gap-1.5">
+                <button onClick={() => { const { id, ...rest } = t; addItem("transactions", { ...rest, date: todayStr() }); showToast("Duplicado"); }} className="p-2.5 shrink-0 cursor-pointer hover:bg-black/10 rounded-xl" style={{ color: MUTED }} title="Duplicar lançamento"><Copy size={16} /></button>
+                <button onClick={() => setConfirmDeleteId(t.id)} className="p-2.5 shrink-0 cursor-pointer hover:bg-black/10 rounded-xl" style={{ color: EXPENSE }} title="Excluir lançamento"><Trash2 size={16} /></button>
+              </div>
+            </div>
+          ))}
         </Card>
       )}
 
-      <p className="text-xs leading-relaxed mt-4 px-1" style={{ color: MUTED }}>
-        A aba Contas funciona como controle de obrigações e vencimentos. O saldo financeiro continua sendo movimentado pelos lançamentos efetivamente realizados.
-      </p>
-
-      {confirmDeleteId && <ConfirmDialog title="Excluir?" message="Apagar conta?" onConfirm={() => { removeItem("bills", confirmDeleteId); setConfirmDeleteId(null); showToast("Excluído"); }} onClose={() => setConfirmDeleteId(null)} />}
+      {confirmDeleteId && (
+        <ConfirmDialog
+          title="Excluir?"
+          message="Apagar lançamento permanentemente?"
+          onConfirm={() => { removeItem("transactions", confirmDeleteId); setConfirmDeleteId(null); showToast("Excluído"); }}
+          onClose={() => setConfirmDeleteId(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1049,7 +1103,6 @@ function SettingsTab({ data, setData, showToast, skipNextSave, setModal, savedPi
 function ModalRouter({ modal, onClose, data, setData, addItem, updateItem, removeItem, addCategory, addBank, month, profileFilter, showToast }) {
   const defaultProfile = profileFilter !== "all" ? profileFilter : (data.profiles && data.profiles[0]?.key);
   if (modal.type === "transaction") return <TransactionForm modal={modal} onClose={onClose} data={data} addItem={addItem} updateItem={updateItem} addBank={addBank} month={month} defaultProfile={defaultProfile} showToast={showToast} />;
-  if (modal.type === "bill") return <BillForm modal={modal} onClose={onClose} data={data} addItem={addItem} updateItem={updateItem} month={month} defaultProfile={defaultProfile} showToast={showToast} />;
   if (modal.type === "card") return <CardForm modal={modal} onClose={onClose} data={data} addItem={addItem} updateItem={updateItem} defaultProfile={defaultProfile} showToast={showToast} />;
   if (modal.type === "cardPurchase") return <CardPurchaseForm modal={modal} onClose={onClose} data={data} addItem={addItem} updateItem={updateItem} defaultProfile={defaultProfile} showToast={showToast} month={month} />;
   if (modal.type === "investment") return <InvestmentForm modal={modal} onClose={onClose} data={data} addItem={addItem} updateItem={updateItem} defaultProfile={defaultProfile} showToast={showToast} />;
@@ -1098,22 +1151,6 @@ function TransactionForm({ modal, onClose, data, addItem, updateItem, addBank, m
         </select>
       </Field>
       <Field label="Banco"><input list="banklist" className={inputCls} style={inputStyle} value={bank} onChange={(e) => setBank(e.target.value)} /><datalist id="banklist">{(data.banks || []).map(b => <option key={b} value={b} />)}</datalist></Field>
-      <Btn variant="couple" className="w-full justify-center mt-2 py-3" onClick={save}>Salvar</Btn>
-    </Modal>
-  );
-}
-
-function BillForm({ modal, onClose, data, addItem, updateItem, month, defaultProfile, showToast }) {
-  const editing = modal.item;
-  const [profileKey, setProfileKey] = useState(editing?.profileKey || defaultProfile);
-  const [description, setDescription] = useState(editing?.description || "");
-  const [dueDate, setDueDate] = useState(editing?.dueDate || `${month}-05`);
-  const [amount, setAmount] = useState(editing?.amount ?? "");
-  const save = () => { if (!description || !amount) return; const p = { profileKey, description, dueDate, amount: Number(amount), status: editing?.status || "pending" }; if (editing) updateItem("bills", editing.id, p); else addItem("bills", p); showToast("Salvo"); onClose(); };
-  return (
-    <Modal title="Conta a Pagar" onClose={onClose}>
-      <Field label="Descrição"><input className={inputCls} style={inputStyle} value={description} onChange={(e) => setDescription(e.target.value)} autoFocus /></Field>
-      <div className="grid grid-cols-2 gap-4"><Field label="Valor"><input type="number" step="0.01" className={inputCls} style={inputStyle} value={amount} onChange={(e) => setAmount(e.target.value)} /></Field><Field label="Vencimento"><input type="date" className={inputCls} style={inputStyle} value={dueDate} onChange={(e) => setDueDate(e.target.value)} /></Field></div>
       <Btn variant="couple" className="w-full justify-center mt-2 py-3" onClick={save}>Salvar</Btn>
     </Modal>
   );
