@@ -494,7 +494,7 @@ export default function App() {
       {tab === "bills" && <BillsTab data={data} month={month} profileFilter={profileFilter} profileName={profileName} setModal={setModal} removeItem={removeItem} updateItem={updateItem} addItem={addItem} showToast={showToast} />}
       {tab === "cards" && <CardsTab data={data} month={month} profileFilter={profileFilter} profileName={profileName} setModal={setModal} removeItem={removeItem} paidStatements={data.paidStatements || {}} togglePaidStatement={(cardId, m) => setData((prev) => { const k = `${cardId}-${m}`; const next = { ...(prev.paidStatements || {}) }; if (next[k]) delete next[k]; else next[k] = true; return { ...prev, paidStatements: next }; })} />}
       {tab === "investments" && <InvestmentsTab data={data} profileFilter={profileFilter} profileName={profileName} setModal={setModal} removeItem={removeItem} updateItem={updateItem} showToast={showToast} setData={setData} />}
-      {tab === "budgets" && <BudgetsTab data={data} month={month} setData={setData} showToast={showToast} />}
+      {tab === "budgets" && <BudgetsTab data={data} month={month} profileFilter={profileFilter} setData={setData} showToast={showToast} />}
       {tab === "psalms" && <PsalmsTab />}
       {tab === "settings" && <SettingsTab data={data} setData={setData} showToast={showToast} skipNextSave={skipNextSave} setModal={setModal} savedPin={savedPin} setSavedPin={setSavedPin} db={db} appId={appId} />}
     </div>
@@ -645,9 +645,9 @@ function PsalmsTab() {
   );
 }
 
-function BudgetsTab({ data, month, setData, showToast }) {
+function BudgetsTab({ data, month, profileFilter, setData, showToast }) {
   const limits = data.budgetLimits || {};
-  const monthTx = (data.transactions || []).filter((t) => t.date && t.date.startsWith(month) && t.direction === "out");
+  const monthTx = (data.transactions || []).filter((t) => t.date && t.date.startsWith(month) && t.direction === "out" && (profileFilter === "all" ? (t.profileKey === "p1" || t.profileKey === "p2") : t.profileKey === profileFilter) && transactionAffectsBalance(t));
   const spentMap = {}; monthTx.forEach((t) => { spentMap[t.category] = (spentMap[t.category] || 0) + Number(t.amount); });
   const setLimit = (cat, val) => {
     const num = Number(val.replace(",", "."));
@@ -693,7 +693,7 @@ function Dashboard({ data, month, profileFilter, profileName, setTab, setModal, 
   const expense = realizedMonthTx.filter((t) => t.direction === "out").reduce((s, t) => s + Number(t.amount), 0);
   const monthNet = income - expense;
 
-  const initialBalances = data.initialBalances || { p1: 0, p2: 0 };
+  const initialBalances = { p1: 0, p2: 0, p3: 0, ...(data.initialBalances || {}) };
   const getCumulativeForProfile = (pkey) => {
     const allUp = (data.transactions || []).filter((t) => t.date && t.date <= `${month}-31` && t.profileKey === pkey && transactionAffectsBalance(t));
     const inc = allUp.filter((t) => t.direction === "in").reduce((s, t) => s + Number(t.amount), 0);
@@ -1056,7 +1056,7 @@ function InvestmentsTab({ data, profileFilter, profileName, setModal, removeItem
 }
 
 function GoalsSection({ data, profileFilter, profileName, setModal, removeItem, updateItem, showToast }) {
-  const items = (data.goals || []).filter((g) => profileFilter === "all" ? (g.profileKey === "p1" || g.profileKey === "p2") : g.profileKey === g.profileKey);
+  const items = (data.goals || []).filter((g) => profileFilter === "all" ? (g.profileKey === "p1" || g.profileKey === "p2") : g.profileKey === profileFilter);
   return (
     <div className="pt-8 mt-8 border-t-2 border-dashed" style={{ borderColor: BORDER }}>
       <div className="flex items-center justify-between mb-6"><h3 className="text-xl font-bold">Caixinhas de Objetivos</h3><Btn variant="couple" onClick={() => setModal({ type: "goal" })}><Plus size={16} /> Nova</Btn></div>
