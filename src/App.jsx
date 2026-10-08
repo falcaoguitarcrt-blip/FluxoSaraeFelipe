@@ -70,6 +70,19 @@ function profileColor(data, profileKey) {
   return COUPLE;
 }
 
+function transactionStatusInfo(transaction) {
+  const direction = transaction?.direction || "out";
+  const status = transaction?.status || (direction === "in" ? "received" : "paid");
+  if (direction === "in") {
+    return status === "pending"
+      ? { label: "Pendente", color: COUPLE, bg: PAPER + "22", nextStatus: "received", nextLabel: "Recebido" }
+      : { label: "Recebido", color: INCOME, bg: INCOME_BG, nextStatus: "pending", nextLabel: "Pendente" };
+  }
+  return status === "pending"
+    ? { label: "Pendente", color: COUPLE, bg: PAPER + "22", nextStatus: "paid", nextLabel: "Paga" }
+    : { label: "Paga", color: INCOME, bg: INCOME_BG, nextStatus: "pending", nextLabel: "Pendente" };
+}
+
 function saraProfileKey(data) {
   if (!data || !data.profiles) return "p2";
   const byName = data.profiles.find((p) => p.name.trim().toLowerCase() === "sara");
@@ -475,7 +488,7 @@ export default function App() {
   const content = (
     <div className="w-full max-w-6xl mx-auto animate-in fade-in duration-300">
       {tab === "dashboard" && <Dashboard data={data} month={month} profileFilter={profileFilter} profileName={profileName} setTab={setTab} setModal={setModal} setData={setData} showToast={showToast} />}
-      {tab === "transactions" && <TransactionsTab data={data} month={month} profileFilter={profileFilter} profileName={profileName} setModal={setModal} removeItem={removeItem} addItem={addItem} showToast={showToast} />}
+      {tab === "transactions" && <TransactionsTab data={data} month={month} profileFilter={profileFilter} profileName={profileName} setModal={setModal} removeItem={removeItem} addItem={addItem} updateItem={updateItem} showToast={showToast} />}
       {tab === "bills" && <BillsTab data={data} month={month} profileFilter={profileFilter} profileName={profileName} setModal={setModal} removeItem={removeItem} updateItem={updateItem} addItem={addItem} showToast={showToast} />}
       {tab === "cards" && <CardsTab data={data} month={month} profileFilter={profileFilter} profileName={profileName} setModal={setModal} removeItem={removeItem} paidStatements={data.paidStatements || {}} togglePaidStatement={(cardId, m) => setData((prev) => { const k = `${cardId}-${m}`; const next = { ...(prev.paidStatements || {}) }; if (next[k]) delete next[k]; else next[k] = true; return { ...prev, paidStatements: next }; })} />}
       {tab === "investments" && <InvestmentsTab data={data} profileFilter={profileFilter} profileName={profileName} setModal={setModal} removeItem={removeItem} updateItem={updateItem} showToast={showToast} setData={setData} />}
@@ -774,7 +787,7 @@ function Dashboard({ data, month, profileFilter, profileName, setTab, setModal, 
   );
 }
 
-function TransactionsTab({ data, month, profileFilter, profileName, setModal, removeItem, addItem, showToast }) {
+function TransactionsTab({ data, month, profileFilter, profileName, setModal, removeItem, addItem, updateItem, showToast }) {
   const [search, setSearch] = useState(""); const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const items = (data.transactions || []).filter((t) => t.date && t.date.startsWith(month) && (profileFilter === "all" ? (t.profileKey === "p1" || t.profileKey === "p2") : t.profileKey === profileFilter)).filter((t) => !search.trim() || t.description.toLowerCase().includes(search.trim().toLowerCase()) || t.category.toLowerCase().includes(search.trim().toLowerCase())).sort((a, b) => b.date.localeCompare(a.date));
   return (
@@ -1001,9 +1014,10 @@ function TransactionForm({ modal, onClose, data, addItem, updateItem, addBank, m
   const [category, setCategory] = useState(editing?.category || cats[0] || "");
   const [bank, setBank] = useState(editing?.bank || (data.banks || [])[0] || "");
   const [amount, setAmount] = useState(editing?.amount ?? "");
+  const [status, setStatus] = useState(editing?.status || "pending");
   const save = () => {
     if (!description.trim() || !amount) return; addBank(bank);
-    const p = { profileKey, date, description: description.trim(), category, bank: bank.trim() || "Carteira", direction, amount: Number(amount) };
+    const p = { profileKey, date, description: description.trim(), category, bank: bank.trim() || "Carteira", direction, amount: Number(amount), status };
     if (editing) updateItem("transactions", editing.id, p); else addItem("transactions", p);
     showToast("Salvo"); onClose();
   };
@@ -1014,6 +1028,21 @@ function TransactionForm({ modal, onClose, data, addItem, updateItem, addBank, m
       <Field label="Descrição"><input className={inputCls} style={inputStyle} value={description} onChange={(e) => setDescription(e.target.value)} autoFocus /></Field>
       <div className="grid grid-cols-2 gap-4"><Field label="Valor"><input type="number" step="0.01" className={inputCls} style={inputStyle} value={amount} onChange={(e) => setAmount(e.target.value)} /></Field><Field label="Data"><input type="date" className={inputCls} style={inputStyle} value={date} onChange={(e) => setDate(e.target.value)} /></Field></div>
       <Field label="Categoria"><select className={inputCls} style={inputStyle} value={category} onChange={(e) => setCategory(e.target.value)}>{cats.map(c => <option key={c} value={c}>{c}</option>)}</select></Field>
+      <Field label={direction === "in" ? "Situação do recebimento" : "Situação da despesa"}>
+        <select className={inputCls} style={inputStyle} value={status} onChange={(e) => setStatus(e.target.value)}>
+          {direction === "in" ? (
+            <>
+              <option value="pending">Pendente</option>
+              <option value="received">Recebido</option>
+            </>
+          ) : (
+            <>
+              <option value="pending">Pendente</option>
+              <option value="paid">Paga</option>
+            </>
+          )}
+        </select>
+      </Field>
       <Field label="Banco"><input list="banklist" className={inputCls} style={inputStyle} value={bank} onChange={(e) => setBank(e.target.value)} /><datalist id="banklist">{(data.banks || []).map(b => <option key={b} value={b} />)}</datalist></Field>
       <Btn variant="couple" className="w-full justify-center mt-2 py-3" onClick={save}>Salvar</Btn>
     </Modal>
