@@ -39,7 +39,7 @@ function ProfileChip({ profile, active }) {
   return <span className="inline-flex items-center gap-2 text-xs font-bold"><span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />{profile.name}{active ? " · selecionado" : ""}</span>;
 }
 
-function CatalogManager({ title, subtitle, items, usageById, onAdd, onRename, onToggle, onDelete, onMerge, allowMerge = true }) {
+function CatalogManager({ title, subtitle, items, usageById, onAdd, onRename, onToggle, onDelete, onMerge, onMove, allowMerge = true }) {
   const [newName, setNewName] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editingName, setEditingName] = useState("");
@@ -87,6 +87,8 @@ function CatalogManager({ title, subtitle, items, usageById, onAdd, onRename, on
                     </>
                   ) : (
                     <>
+                      <button className="p-2 rounded-lg hover:bg-black/5" title="Subir" onClick={() => onMove?.(item.id, -1)}>↑</button>
+                      <button className="p-2 rounded-lg hover:bg-black/5" title="Descer" onClick={() => onMove?.(item.id, 1)}>↓</button>
                       <button className="p-2 rounded-lg hover:bg-black/5" title="Editar" onClick={() => { setEditingId(item.id); setEditingName(item.name); }}><Pencil size={15} style={{ color: MUTED }} /></button>
                       <button className="p-2 rounded-lg hover:bg-black/5" title={item.active === false ? "Reativar" : "Desativar"} onClick={() => onToggle(item.id)}><span className="font-black" style={{ color: item.active === false ? INCOME : MUTED }}>{item.active === false ? "↻" : "⏸"}</span></button>
                       {used === 0 && <button className="p-2 rounded-lg hover:bg-black/5" title="Excluir" onClick={() => onDelete(item.id)}><Trash2 size={15} style={{ color: EXPENSE }} /></button>}
@@ -320,6 +322,19 @@ export default function SettingsTab({
     setData((prev) => ({ ...prev, [key]: (prev[key] || []).map((x) => x.id === id ? { ...x, active: !x.active } : x) }));
   };
 
+  const moveCatalog = (key, id, direction) => {
+    setData((prev) => {
+      const list = [...(prev[key] || [])];
+      const item = list.find((x) => x.id === id);
+      if (!item || !("order" in item)) return prev;
+      const sameScope = list.filter((x) => (x.profileKey || null) === (item.profileKey || null)).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+      const index = sameScope.findIndex((x) => x.id === id);
+      const targetIndex = index + direction;
+      if (index < 0 || targetIndex < 0 || targetIndex >= sameScope.length) return prev;
+      const target = sameScope[targetIndex];
+      return { ...prev, [key]: list.map((x) => x.id === id ? { ...x, order: target.order } : x.id === target.id ? { ...x, order: item.order } : x) };
+    });
+  };
   const addAccount = (payload) => {
     setData((prev) => {
       const id = payload.id || "acct_" + Math.random().toString(36).slice(2, 10);
@@ -401,6 +416,7 @@ export default function SettingsTab({
       onToggle={(id) => toggleCatalog(key, id)}
       onDelete={(id) => deleteCatalog(key, id)}
       onMerge={(source, target) => mergeCategory(key, source, target)}
+      onMove={(id, direction) => moveCatalog(key, id, direction)}
       allowMerge={merge} />;
   };
 
@@ -491,6 +507,7 @@ export default function SettingsTab({
       <div className="space-y-6">
         {selector(false)}
         {catalogPanel("investmentCategoryCatalog", scope, "Categorias de investimento", "Globais + personalizadas do perfil.")}
+        {catalogPanel("goalCategoryCatalog", scope, "Categorias de objetivos", "Usadas pelas Caixinhas de Objetivos, também separadas por perfil.")}
         {catalogPanel("investmentInstitutions", "global", "Instituições de investimento", "Instituições administráveis, sem deixar XP fixo no código.", false)}
       </div>
     );
