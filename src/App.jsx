@@ -307,6 +307,7 @@ export default function App() {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [tab, setTab] = useState("dashboard");
   const [moreOpen, setMoreOpen] = useState(false);
+  const [settingsContext, setSettingsContext] = useState("dashboard");
   const [profileFilter, setProfileFilter] = useState("all");
   const [month, setMonth] = useState(currentMonthStr());
   const [modal, setModal] = useState(null);
@@ -322,7 +323,6 @@ export default function App() {
   useEffect(() => {
     if (tab === "budgets" || tab === "psalms") setTab("dashboard");
     if (tab === "bills") setTab("transactions");
-    if (profileFilter === "p3" && tab === "settings") setTab("dashboard");
   }, [tab]);
 
 
@@ -369,12 +369,12 @@ export default function App() {
             : [...serverData.profiles, { key: "p3", name: "Outros" }]
           : DEFAULT_STATE.profiles;
         const initialBalances = { ...DEFAULT_STATE.initialBalances, ...(serverData.initialBalances || {}) };
-        setData({ ...DEFAULT_STATE, ...serverData, profiles, initialBalances });
+        setData(migrateData({ ...serverData, profiles, initialBalances }));
         setReady(true);
         setSyncStatus("synced");
       } else {
         await setDoc(docRef, DEFAULT_STATE);
-        setData(DEFAULT_STATE);
+        setData(migrateData(DEFAULT_STATE));
         setReady(true);
         setSyncStatus("synced");
       }
@@ -481,7 +481,7 @@ export default function App() {
 
       {tab === "cards" && <CardsTab data={data} month={month} profileFilter={profileFilter} profileName={profileName} setModal={setModal} removeItem={removeItem} paidStatements={data.paidStatements || {}} togglePaidStatement={(cardId, m) => setData((prev) => { const k = `${cardId}-${m}`; const next = { ...(prev.paidStatements || {}) }; if (next[k]) delete next[k]; else next[k] = true; return { ...prev, paidStatements: next }; })} />}
       {tab === "investments" && <InvestmentsTab data={data} profileFilter={profileFilter} profileName={profileName} setModal={setModal} removeItem={removeItem} updateItem={updateItem} showToast={showToast} setData={setData} />}
-      {tab === "settings" && <SettingsTab data={data} setData={setData} showToast={showToast} skipNextSave={skipNextSave} setModal={setModal} savedPin={savedPin} setSavedPin={setSavedPin} db={db} appId={appId} />}
+      {tab === "settings" && <SettingsTab data={data} setData={setData} showToast={showToast} skipNextSave={skipNextSave} setModal={setModal} savedPin={savedPin} setSavedPin={setSavedPin} db={db} appId={appId} contextTab={settingsContext} profileFilter={profileFilter} migrateData={migrateData} />}
     </div>
   );
 
