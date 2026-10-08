@@ -1060,51 +1060,68 @@ function ModalRouter({ modal, onClose, data, setData, addItem, updateItem, remov
   return null;
 }
 
-function TransactionForm({ modal, onClose, data, addItem, updateItem, addBank, month, defaultProfile, showToast }) {
+function TransactionForm({ modal, onClose, data, addItem, updateItem, month, defaultProfile, showToast }) {
   const editing = modal.item;
   const [direction, setDirection] = useState(editing?.direction || modal.direction || "out");
-  const [profileKey, setProfileKey] = useState(editing?.profileKey || defaultProfile);
-  const [date, setDate] = useState(editing?.date || (month === currentMonthStr() ? todayStr() : `${month}-01`));
+  const [profileKey, setProfileKey] = useState(editing?.profileKey || defaultProfile || "");
+  const [date, setDate] = useState(editing?.date || (month === currentMonthStr() ? todayStr() : month + "-01"));
   const [description, setDescription] = useState(editing?.description || "");
-  const cats = direction === "in" ? (data.incomeCategories || []) : (data.expenseCategories || []);
-  const [category, setCategory] = useState(editing?.category || cats[0] || "");
-  const [bank, setBank] = useState(editing?.bank || (data.banks || [])[0] || "");
   const [amount, setAmount] = useState(editing?.amount ?? "");
   const [status, setStatus] = useState(editing ? (editing.status || (direction === "in" ? "received" : "paid")) : "pending");
+
+  const catKey = direction === "in" ? "incomeCategoryCatalog" : "expenseCategoryCatalog";
+  const activeCats = getProfileCatalog(data, catKey, profileKey);
+  const editingCat = editing?.categoryId ? getProfileCatalog(data, catKey, profileKey, true).find((c) => c.id === editing.categoryId) : null;
+  const cats = editingCat && !activeCats.some((c) => c.id === editingCat.id) ? [editingCat, ...activeCats] : activeCats;
+  const [categoryId, setCategoryId] = useState(editing?.categoryId || cats[0]?.id || "");
+
+  const accounts = getAccountsForProfile(data, profileKey);
+  const editingAccount = editing?.accountId ? getAccountsForProfile(data, profileKey, true).find((a) => a.id === editing.accountId) : null;
+  const accountOptions = editingAccount && !accounts.some((a) => a.id === editingAccount.id) ? [editingAccount, ...accounts] : accounts;
+  const [accountId, setAccountId] = useState(editing?.accountId || accountOptions[0]?.id || "");
+
+  useEffect(() => {
+    const list = getProfileCatalog(data, catKey, profileKey);
+    setCategoryId((current) => list.some((c) => c.id === current) ? current : (list[0]?.id || ""));
+  }, [direction, profileKey, data, catKey]);
+
+  useEffect(() => {
+    const list = getAccountsForProfile(data, profileKey);
+    setAccountId((current) => list.some((a) => a.id === current) ? current : (list[0]?.id || ""));
+  }, [profileKey, data]);
+
   const save = () => {
-    if (!description.trim() || !amount) return; addBank(bank);
-    const p = { profileKey, date, description: description.trim(), category, bank: bank.trim() || "Carteira", direction, amount: Number(amount), status };
+    if (!profileKey || !description.trim() || !amount || !categoryId || !accountId) {
+      showToast("Preencha perfil, categoria e conta");
+      return;
+    }
+    const cat = getProfileCatalog(data, catKey, profileKey, true).find((c) => c.id === categoryId);
+    const account = getAccountsForProfile(data, profileKey, true).find((a) => a.id === accountId);
+    if (!cat || !account) return;
+    const institution = account.institutionId ? (data.financialInstitutions || []).find((i) => i.id === account.institutionId) : null;
+    const bank = account.type === "wallet" ? "Carteira" : (institution?.name || "Instituição");
+    const p = { profileKey, date, description: description.trim(), category: cat.name, categoryId: cat.id, accountId: account.id, bank, direction, amount: Number(amount), status };
     if (editing) updateItem("transactions", editing.id, p); else addItem("transactions", p);
-    showToast("Salvo"); onClose();
+    showToast("Lançamento salvo");
+    onClose();
   };
+
   return (
     <Modal title={editing ? "Editar Lançamento" : "Novo Lançamento"} onClose={onClose}>
-      <div className="flex gap-2 mb-4"><button onClick={() => { setDirection("in"); setStatus(editing?.status === "pending" ? "pending" : "received"); setCategory((data.incomeCategories || [])[0]); }} className="flex-1 py-2 rounded-xl text-xs font-bold text-white" style={{ backgroundColor: direction === "in" ? INCOME : MUTED }}>Receita</button><button onClick={() => { setDirection("out"); setStatus(editing?.status === "pending" ? "pending" : "paid"); setCategory((data.expenseCategories || [])[0]); }} className="flex-1 py-2 rounded-xl text-xs font-bold text-white" style={{ backgroundColor: direction === "out" ? EXPENSE : MUTED }}>Despesa</button></div>
-      <Field label="Quem"><select className={inputCls} style={inputStyle} value={profileKey} onChange={(e) => setProfileKey(e.target.value)}>{(data.profiles || []).map(p => <option key={p.key} value={p.key}>{p.name}</option>)}</select></Field>
+      <div className="flex gap-2 mb-4">
+        <button onClick={() => { setDirection("in"); setStatus(editing?.status === "pending" ? "pending" : "received"); }} className="flex-1 py-2 rounded-xl text-xs font-bold text-white" style={{ backgroundColor: direction === "in" ? INCOME : MUTED }}>Receita</button>
+        <button onClick={() => { setDirection("out"); setStatus(editing?.status === "pending" ? "pending" : "paid"); }} className="flex-1 py-2 rounded-xl text-xs font-bold text-white" style={{ backgroundColor: direction === "out" ? EXPENSE : MUTED }}>Despesa</button>
+      </div>
+      <Field label="Quem"><select className={inputCls} style={inputStyle} value={profileKey} onChange={(e) => setProfileKey(e.target.value)}><option value="">Selecione o perfil...</option>{(data.profiles || []).map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}</select></Field>
       <Field label="Descrição"><input className={inputCls} style={inputStyle} value={description} onChange={(e) => setDescription(e.target.value)} autoFocus /></Field>
       <div className="grid grid-cols-2 gap-4"><Field label="Valor"><input type="number" step="0.01" className={inputCls} style={inputStyle} value={amount} onChange={(e) => setAmount(e.target.value)} /></Field><Field label="Data"><input type="date" className={inputCls} style={inputStyle} value={date} onChange={(e) => setDate(e.target.value)} /></Field></div>
-      <Field label="Categoria"><select className={inputCls} style={inputStyle} value={category} onChange={(e) => setCategory(e.target.value)}>{cats.map(c => <option key={c} value={c}>{c}</option>)}</select></Field>
-      <Field label={direction === "in" ? "Situação do recebimento" : "Situação da despesa"}>
-        <select className={inputCls} style={inputStyle} value={status} onChange={(e) => setStatus(e.target.value)}>
-          {direction === "in" ? (
-            <>
-              <option value="pending">Pendente</option>
-              <option value="received">Recebido</option>
-            </>
-          ) : (
-            <>
-              <option value="pending">Pendente</option>
-              <option value="paid">Paga</option>
-            </>
-          )}
-        </select>
-      </Field>
-      <Field label="Banco"><input list="banklist" className={inputCls} style={inputStyle} value={bank} onChange={(e) => setBank(e.target.value)} /><datalist id="banklist">{(data.banks || []).map(b => <option key={b} value={b} />)}</datalist></Field>
+      <Field label="Categoria"><select className={inputCls} style={inputStyle} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>{!cats.length && <option value="">Nenhuma categoria cadastrada</option>}{cats.map((c) => <option key={c.id} value={c.id}>{c.name}{c.active === false ? " (desativada)" : ""}</option>)}</select></Field>
+      <Field label={direction === "in" ? "Situação do recebimento" : "Situação da despesa"}><select className={inputCls} style={inputStyle} value={status} onChange={(e) => setStatus(e.target.value)}>{direction === "in" ? <><option value="pending">Pendente</option><option value="received">Recebido</option></> : <><option value="pending">Pendente</option><option value="paid">Paga</option></>}</select></Field>
+      <Field label="Conta"><select className={inputCls} style={inputStyle} value={accountId} onChange={(e) => setAccountId(e.target.value)}>{!accountOptions.length && <option value="">Nenhuma conta cadastrada</option>}{accountOptions.map((a) => { const inst = a.institutionId ? (data.financialInstitutions || []).find((i) => i.id === a.institutionId) : null; return <option key={a.id} value={a.id}>{a.accountName}{a.type === "wallet" ? " · Carteira" : " · " + (inst?.name || "Instituição")}</option>; })}</select></Field>
       <Btn variant="couple" className="w-full justify-center mt-2 py-3" onClick={save}>Salvar</Btn>
     </Modal>
   );
 }
-
 function CardForm({ modal, onClose, data, addItem, updateItem, defaultProfile, showToast }) {
   const editing = modal.item;
   const [name, setName] = useState(editing?.name || "");
