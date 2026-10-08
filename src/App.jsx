@@ -83,6 +83,8 @@ function transactionStatusInfo(transaction) {
     : { label: "Paga", color: INCOME, bg: INCOME_BG, nextStatus: "pending", nextLabel: "Pendente" };
 }
 
+const transactionAffectsBalance = (transaction) => transaction?.status !== "pending";
+
 function saraProfileKey(data) {
   if (!data || !data.profiles) return "p2";
   const byName = data.profiles.find((p) => p.name.trim().toLowerCase() === "sara");
@@ -686,13 +688,14 @@ function BudgetsTab({ data, month, setData, showToast }) {
 
 function Dashboard({ data, month, profileFilter, profileName, setTab, setModal, setData, showToast }) {
   const monthTx = (data.transactions || []).filter((t) => t.date && t.date.startsWith(month) && (profileFilter === "all" ? (t.profileKey === "p1" || t.profileKey === "p2") : t.profileKey === profileFilter));
-  const income = monthTx.filter((t) => t.direction === "in").reduce((s, t) => s + Number(t.amount), 0);
-  const expense = monthTx.filter((t) => t.direction === "out").reduce((s, t) => s + Number(t.amount), 0);
+  const realizedMonthTx = monthTx.filter(transactionAffectsBalance);
+  const income = realizedMonthTx.filter((t) => t.direction === "in").reduce((s, t) => s + Number(t.amount), 0);
+  const expense = realizedMonthTx.filter((t) => t.direction === "out").reduce((s, t) => s + Number(t.amount), 0);
   const monthNet = income - expense;
 
   const initialBalances = data.initialBalances || { p1: 0, p2: 0 };
   const getCumulativeForProfile = (pkey) => {
-    const allUp = (data.transactions || []).filter((t) => t.date && t.date <= `${month}-31` && t.profileKey === pkey);
+    const allUp = (data.transactions || []).filter((t) => t.date && t.date <= `${month}-31` && t.profileKey === pkey && transactionAffectsBalance(t));
     const inc = allUp.filter((t) => t.direction === "in").reduce((s, t) => s + Number(t.amount), 0);
     const exp = allUp.filter((t) => t.direction === "out").reduce((s, t) => s + Number(t.amount), 0);
     return (Number(initialBalances[pkey]) || 0) + inc - exp;
@@ -719,17 +722,17 @@ function Dashboard({ data, month, profileFilter, profileName, setTab, setModal, 
     }
   };
 
-  const catMap = {}; monthTx.filter((t) => t.direction === "out").forEach((t) => { catMap[t.category] = (catMap[t.category] || 0) + Number(t.amount); });
+  const catMap = {}; realizedMonthTx.filter((t) => t.direction === "out").forEach((t) => { catMap[t.category] = (catMap[t.category] || 0) + Number(t.amount); });
   const pieData = Object.entries(catMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
   const PIE_COLORS = ["#A6432E", "#6B3FCA", "#3B5A73", "#3F7D5C", "#7A7A6F", "#8C5B3F", "#5C4B7A", "#6B7A3F"];
 
   const splitByProfile = (data.profiles || []).filter((p) => p.key === "p1" || p.key === "p2").map((p) => {
-    const tx = (data.transactions || []).filter((t) => t.date && t.date.startsWith(month) && t.profileKey === p.key);
+    const tx = (data.transactions || []).filter((t) => t.date && t.date.startsWith(month) && t.profileKey === p.key && transactionAffectsBalance(t));
     return { name: p.name, receitas: tx.filter((t) => t.direction === "in").reduce((s, t) => s + Number(t.amount), 0), despesas: tx.filter((t) => t.direction === "out").reduce((s, t) => s + Number(t.amount), 0) };
   });
   const totalIncomeAll = splitByProfile.reduce((s, p) => s + p.receitas, 0); const totalExpenseAll = splitByProfile.reduce((s, p) => s + p.despesas, 0);
 
-  const bankMap = {}; monthTx.forEach((t) => { const b = t.bank || "Carteira"; bankMap[b] = (bankMap[b] || 0) + (t.direction === "in" ? Number(t.amount) : -Number(t.amount)); });
+  const bankMap = {}; realizedMonthTx.forEach((t) => { const b = t.bank || "Carteira"; bankMap[b] = (bankMap[b] || 0) + (t.direction === "in" ? Number(t.amount) : -Number(t.amount)); });
   const bankRows = Object.entries(bankMap).filter(([_, v]) => v !== 0).sort((a, b) => b[1] - a[1]);
   const recentTx = monthTx.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8);
 
