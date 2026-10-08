@@ -489,7 +489,7 @@ export default function App() {
   }
 
   const content = (
-    <div className="w-full max-w-6xl mx-auto animate-in fade-in duration-300">
+    <div className="w-full max-w-7xl mx-auto animate-in fade-in duration-300">
       {tab === "dashboard" && <Dashboard data={data} month={month} profileFilter={profileFilter} profileName={profileName} setTab={setTab} setModal={setModal} setData={setData} showToast={showToast} />}
       {tab === "transactions" && <TransactionsTab data={data} month={month} profileFilter={profileFilter} profileName={profileName} setModal={setModal} removeItem={removeItem} addItem={addItem} updateItem={updateItem} showToast={showToast} />}
 
@@ -583,7 +583,7 @@ export default function App() {
         <div className="px-5 pb-3 flex items-center gap-2">{profileChips(false)}</div>
         {monthNavVisible && <div className="px-5 pb-3 flex justify-end">{monthNav}</div>}
       </div>
-      <div className="flex-1 px-4 sm:px-6 py-6 pb-32 w-full max-w-3xl mx-auto">{content}</div>
+      <div className="flex-1 px-4 sm:px-8 lg:px-12 py-6 pb-32 w-full max-w-7xl mx-auto">{content}</div>
       <GlobalFAB setModal={setModal} isDesktop={false} isOtherProfile={isOtherProfile} />
       <div className="fixed bottom-0 left-0 right-0 z-30 flex justify-center pointer-events-none">
         <div className="w-full pointer-events-auto border-t pb-safe shadow-[0_-6px_24px_rgba(0,0,0,0.08)] backdrop-blur-xl" style={{ borderColor: BORDER, backgroundColor: PANEL_TINT }}>
