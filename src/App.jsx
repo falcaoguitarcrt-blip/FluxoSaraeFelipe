@@ -802,7 +802,13 @@ function TransactionsTab({ data, month, profileFilter, profileName, setModal, re
                 <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-sm" style={{ backgroundColor: t.direction === "in" ? INCOME_BG : EXPENSE_BG }}>{t.direction === "in" ? <ArrowUpCircle size={20} style={{ color: INCOME }} /> : <ArrowDownCircle size={20} style={{ color: EXPENSE }} />}</div>
                 <div className="flex-1 min-w-0"><p className="text-sm font-bold truncate mb-1">{t.description}</p><p className="text-xs font-semibold truncate" style={{ color: MUTED }}>{t.category} · {fmtDate(t.date)} · <Dot color={profileColor(data, t.profileKey)} />{profileName(t.profileKey)}</p></div>
               </div>
-              <span className="text-base font-black shrink-0"><Money value={t.amount} tone={t.direction === "in" ? "income" : "expense"} /></span>
+               <div className="flex flex-col items-end gap-1.5 shrink-0">
+                 <span className="text-base font-black"><Money value={t.amount} tone={t.direction === "in" ? "income" : "expense"} /></span>
+                 {(() => {
+                   const status = transactionStatusInfo(t);
+                   return <button onClick={() => { updateItem("transactions", t.id, { status: status.nextStatus }); showToast(status.nextStatus === "pending" ? "Marcado como pendente" : status.nextLabel + " com sucesso"); }} className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide border cursor-pointer hover:opacity-80 transition-opacity" style={{ color: status.color, backgroundColor: status.bg, borderColor: status.color + "55" }} title={"Marcar como " + status.nextLabel.toLowerCase()}>{status.label}</button>;
+                 })()}
+               </div>
               <div className="flex items-center gap-1.5"><button onClick={() => { const { id, ...rest } = t; addItem("transactions", { ...rest, date: todayStr() }); showToast("Duplicado"); }} className="p-2.5 shrink-0 cursor-pointer hover:bg-black/10 rounded-xl" style={{ color: MUTED }}><Copy size={16} /></button><button onClick={() => setConfirmDeleteId(t.id)} className="p-2.5 shrink-0 cursor-pointer hover:bg-black/10 rounded-xl" style={{ color: EXPENSE }}><Trash2 size={16} /></button></div>
             </div>
           ))}
