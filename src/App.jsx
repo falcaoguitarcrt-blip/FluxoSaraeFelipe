@@ -562,6 +562,9 @@ export default function App() {
       </div>
   );
 
+  const mobileNav = isOtherProfile ? NAV.filter((n) => ["dashboard", "transactions", "bills"].includes(n.key)) : NAV;
+  const showMobileMore = !isOtherProfile;
+
   const mobileView = (
     <div className="w-full min-h-screen flex flex-col relative transition-colors duration-300" style={{ ...THEMES[theme], ...accentStyle, backgroundColor: PAPER_TINT, color: INK, fontFamily: "'Inter', sans-serif" }}>
       <div className="sticky top-0 z-30 shadow-sm backdrop-blur-xl" style={{ backgroundColor: `${PANEL_TINT}F5`, borderBottom: `1px solid ${BORDER}` }}>
@@ -584,13 +587,13 @@ export default function App() {
       <GlobalFAB setModal={setModal} isDesktop={false} />
       <div className="fixed bottom-0 left-0 right-0 z-30 flex justify-center pointer-events-none">
         <div className="w-full pointer-events-auto border-t pb-safe shadow-[0_-6px_24px_rgba(0,0,0,0.08)] backdrop-blur-xl" style={{ borderColor: BORDER, backgroundColor: PANEL_TINT }}>
-          <div className={`grid ${isOtherProfile ? "grid-cols-3" : "grid-cols-5"} max-w-md mx-auto">
-            {(isOtherProfile ? NAV.filter((n) => ["dashboard", "transactions", "bills"].includes(n.key)) : NAV).map((n) => <NavBtn key={n.key} n={n} active={tab === n.key} onClick={() => { setTab(n.key); setMoreOpen(false); }} accentColor={accentStyle["--c-couple"] || COUPLE} />)}
-            {!isOtherProfile && <button onClick={() => setMoreOpen((v) => !v)} className="flex flex-col items-center justify-center gap-1 py-3 cursor-pointer transition-colors" style={{ color: MORE_NAV.some((n) => n.key === tab) ? (accentStyle["--c-couple"] || COUPLE) : MUTED, borderTop: MORE_NAV.some((n) => n.key === tab) ? "3px solid " + (accentStyle["--c-couple"] || COUPLE) : "3px solid transparent" }}><MoreHorizontal size={22} /><span className="text-[10px] font-bold tracking-wide">Mais</span></button>}
+          <div className={isOtherProfile ? "grid grid-cols-3 max-w-md mx-auto" : "grid grid-cols-5 max-w-md mx-auto"}>
+            {mobileNav.map((n) => <NavBtn key={n.key} n={n} active={tab === n.key} onClick={() => { setTab(n.key); setMoreOpen(false); }} accentColor={accentStyle["--c-couple"] || COUPLE} />)}
+            {showMobileMore && <button onClick={() => setMoreOpen((v) => !v)} className="flex flex-col items-center justify-center gap-1 py-3 cursor-pointer transition-colors" style={{ color: MORE_NAV.some((n) => n.key === tab) ? (accentStyle["--c-couple"] || COUPLE) : MUTED, borderTop: MORE_NAV.some((n) => n.key === tab) ? "3px solid " + (accentStyle["--c-couple"] || COUPLE) : "3px solid transparent" }}><MoreHorizontal size={22} /><span className="text-[10px] font-bold tracking-wide">Mais</span></button>}
           </div>
         </div>
       </div>
-      {moreOpen && !isOtherProfile && (
+      {showMobileMore && moreOpen && (
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 backdrop-blur-sm animate-in fade-in" onClick={() => setMoreOpen(false)}>
           <div className="w-full rounded-t-3xl p-6 pb-12 shadow-2xl animate-in slide-in-from-bottom-8 border-t" style={{ backgroundColor: PANEL_TINT, borderColor: BORDER, maxWidth: 640 }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4 px-2"><span className="text-xs font-bold uppercase tracking-wider" style={{ color: MUTED }}>Menu de Ferramentas</span><button onClick={() => setMoreOpen(false)} className="w-8 h-8 rounded-full flex items-center justify-center shadow-sm" style={{ border: "1px solid " + BORDER_SOFT, color: INK, backgroundColor: SURFACE }}><X size={16}/></button></div>
@@ -606,7 +609,6 @@ export default function App() {
       )}
     </div>
   );
-
   return (
     <div ref={containerRef} className="w-full relative bg-black/5">
       {isDesktop ? desktopView : mobileView}
