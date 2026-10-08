@@ -1222,17 +1222,30 @@ function InvestmentForm({ modal, onClose, data, addItem, updateItem, defaultProf
 }
 function GoalForm({ modal, onClose, data, addItem, updateItem, defaultProfile, showToast }) {
   const editing = modal.item;
-  const [name, setName] = useState(editing?.name || ""); const [targetAmount, setTargetAmount] = useState(editing?.targetAmount ?? "");
-  const save = () => { if (!name || !targetAmount) return; const p = { profileKey: saraProfileKey(data), name, category: "Geral", targetAmount: Number(targetAmount), currentAmount: editing?.currentAmount || 0 }; if (editing) updateItem("goals", editing.id, p); else addItem("goals", p); showToast("Salvo"); onClose(); };
+  const [profileKey, setProfileKey] = useState(editing?.profileKey || defaultProfile || "");
+  const [name, setName] = useState(editing?.name || "");
+  const categories = getProfileCatalog(data, "goalCategoryCatalog", profileKey);
+  const [categoryId, setCategoryId] = useState(editing?.categoryId || categories[0]?.id || "");
+  const [targetAmount, setTargetAmount] = useState(editing?.targetAmount ?? "");
+  useEffect(() => { const list = getProfileCatalog(data, "goalCategoryCatalog", profileKey); setCategoryId((c) => list.some((x) => x.id === c) ? c : (list[0]?.id || "")); }, [profileKey, data]);
+  const save = () => {
+    const category = getProfileCatalog(data, "goalCategoryCatalog", profileKey, true).find((c) => c.id === categoryId);
+    if (!profileKey || !name.trim() || !targetAmount || !category) { showToast("Preencha perfil, nome, categoria e valor alvo"); return; }
+    const p = { profileKey, name: name.trim(), category: category.name, categoryId: category.id, targetAmount: Number(targetAmount), currentAmount: editing?.currentAmount || 0 };
+    if (editing) updateItem("goals", editing.id, p); else addItem("goals", p);
+    showToast("Objetivo salvo");
+    onClose();
+  };
   return (
-    <Modal title="Caixinha de Objetivo" onClose={onClose}>
+    <Modal title={editing ? "Editar Objetivo" : "Novo Objetivo"} onClose={onClose}>
+      <Field label="Perfil responsável"><select className={inputCls} style={inputStyle} value={profileKey} onChange={(e) => setProfileKey(e.target.value)}><option value="">Selecione o perfil...</option>{(data.profiles || []).filter((p) => p.key === "p1" || p.key === "p2").map((p) => <option key={p.key} value={p.key}>{p.name}</option>)}</select></Field>
       <Field label="Nome / Motivo"><input className={inputCls} style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} autoFocus /></Field>
+      <Field label="Categoria"><select className={inputCls} style={inputStyle} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
       <Field label="Valor Alvo (R$)"><input type="number" step="0.01" className={inputCls} style={inputStyle} value={targetAmount} onChange={(e) => setTargetAmount(e.target.value)} /></Field>
       <Btn variant="couple" className="w-full justify-center mt-2 py-3" onClick={save}>Salvar</Btn>
     </Modal>
   );
 }
-
 function GoalAdjustForm({ modal, onClose, updateItem, showToast }) {
   const [val, setVal] = useState(""); const goal = modal.item; const dir = modal.direction;
   const save = () => { const num = Number(val); if (!num) return; updateItem("goals", goal.id, { currentAmount: Math.max(0, goal.currentAmount + (dir === "add" ? num : -num)) }); showToast("Atualizado"); onClose(); };
