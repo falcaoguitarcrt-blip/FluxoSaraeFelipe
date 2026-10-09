@@ -13,15 +13,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Test current version
+      - name: Test path
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path("scripts/recovery-read.mjs")
-          s=p.read_text()
-          a=s.index("const samples=[];")
-          b=s.index("let best=null;",a)
-          s=s[:a] + 'const samples=[new Date(Date.now()-5*60*1000).toISOString()];\n\n' + s[b:]
-          p.write_text(s)
-          PY
+          sed -i 's/fluxo-casal-compartilhado-oficial-2026/fluxo-casal-compartilhado-oficial/; s/const samples=.*/const samples=[new Date(Date.now()-5*60*1000).toISOString()];/' scripts/recovery-read.mjs
           node scripts/recovery-read.mjs
