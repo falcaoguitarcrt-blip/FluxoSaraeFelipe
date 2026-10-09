@@ -1,0 +1,86 @@
+name: Auditoria segura do Firestore
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  audit-firestore:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Auditar documento compartilhado
+        run: |
+          node --input-type=module <<'NODE'
+          import { initializeApp } from "firebase/app";
+          import { getAuth, signInAnonymously } from "firebase/auth";
+          import { getFirestore, doc, getDoc } from "firebase/firestore";
+
+          const firebaseConfig = {
+            apiKey: "AIzaSyAvdngV2HMKdAIUmK1f9IF0gm4uEXPdd44",
+            authDomain: "fluxo-de-caixa-59dd1.firebaseapp.com",
+            projectId: "fluxo-de-caixa-59dd1",
+            storageBucket: "fluxo-de-caixa-59dd1.appspot.com",
+            messagingSenderId: "367352854109",
+            appId: "1:367352854109:web:a6273752e5a7ea891c305e"
+          };
+
+          const app = initializeApp(firebaseConfig);
+          const auth = getAuth(app);
+          const db = getFirestore(app);
+          await signInAnonymously(auth);
+
+          const ref = doc(db, "artifacts", "fluxo-casal-producao", "public", "data", "finances", "shared_state");
+          const snap = await getDoc(ref);
+
+          if (!snap.exists()) {
+            console.log("FIRESTORE_DOCUMENT_EXISTS=false");
+            process.exit(0);
+          }
+
+          const data = snap.data();
+          console.log("FIRESTORE_DOCUMENT_EXISTS=true");
+          console.log("TOP_LEVEL_KEYS=" + Object.keys(data).sort().join(","));
+
+          const collections = [
+            "profiles",
+            "transactions",
+            "cards",
+            "cardPurchases",
+            "investments",
+            "goals",
+            "netWorthHistory",
+            "paidStatements",
+            "accounts",
+            "financialInstitutions",
+            "investmentInstitutions",
+            "incomeCategoryCatalog",
+            "expenseCategoryCatalog",
+            "investmentCategoryCatalog",
+            "goalCategoryCatalog"
+          ];
+
+          for (const key of collections) {
+            const value = data[key];
+            if (Array.isArray(value)) {
+              console.log(`${key}_COUNT=${value.length}`);
+            } else if (value && typeof value === "object") {
+              console.log(`${key}_TYPE=object`);
+            } else {
+              console.log(`${key}_MISSING_OR_EMPTY=true`);
+            }
+          }
+          NODE
