@@ -27,6 +27,8 @@ function pathFor(app) {
 function counts(body) {
   const f=body?.fields||{};
   const get=k=>Array.isArray(f[k]?.arrayValue?.values)?f[k].arrayValue.values.length:0;
+  const mapKeys=k=>f[k]?.mapValue?.fields ? Object.keys(f[k].mapValue.fields).length : 0;
+  const scalar=k=>Object.keys(f[k]||{})[0] ? f[k] : null;
   return {
     profiles:get("profiles"),
     transactions:get("transactions"),
@@ -35,6 +37,17 @@ function counts(body) {
     investments:get("investments"),
     goals:get("goals"),
     netWorthHistory:get("netWorthHistory"),
+    bills:get("bills"),
+    incomeCategoryCatalog:get("incomeCategoryCatalog"),
+    expenseCategoryCatalog:get("expenseCategoryCatalog"),
+    financialInstitutions:get("financialInstitutions"),
+    accounts:get("accounts"),
+    investmentCategoryCatalog:get("investmentCategoryCatalog"),
+    investmentInstitutions:get("investmentInstitutions"),
+    goalCategoryCatalog:get("goalCategoryCatalog"),
+    paidStatementsKeys:mapKeys("paidStatements"),
+    budgetLimitsKeys:mapKeys("budgetLimits"),
+    initialBalances:scalar("initialBalances"),
     keys:Object.keys(f).length
   };
 }
