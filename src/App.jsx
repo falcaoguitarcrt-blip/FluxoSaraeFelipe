@@ -188,7 +188,7 @@ try {
   console.error("Erro ao inicializar Firebase:", error);
 }
 
-const appId = "fluxo-casal-producao"; 
+const appId = "fluxo-casal-compartilhado-oficial"; 
 
 async function loadTheme() {
   try { const res = localStorage.getItem(THEME_KEY); if (res) return res; } catch (e) {}
