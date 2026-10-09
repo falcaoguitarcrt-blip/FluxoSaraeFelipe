@@ -53,6 +53,18 @@ jobs:
           });
           const body = await response.json();
 
+          const auditDocument = (label, docBody) => {
+            const fields = docBody.fields || {};
+            console.log(label + "_EXISTS=true");
+            console.log(label + "_TOP_LEVEL_KEY_COUNT=" + Object.keys(fields).length);
+            for (const key of ["profiles","transactions","cards","cardPurchases","investments","goals","netWorthHistory","accounts"]) {
+              const values = fields[key]?.arrayValue?.values;
+              const type = fields[key]?.arrayValue ? "array" : fields[key]?.mapValue ? "object" : fields[key] ? "other" : "missing";
+              console.log(label + "_" + key + "_TYPE=" + type);
+              if (type === "array") console.log(label + "_" + key + "_COUNT=" + (Array.isArray(values) ? values.length : 0));
+            }
+          };
+
           if (response.status === 404 || body.error?.status === "NOT_FOUND") {
             console.log("FIRESTORE_DOCUMENT_EXISTS=false");
             process.exit(0);
@@ -63,23 +75,21 @@ jobs:
             process.exit(1);
           }
 
-          const fields = body.fields || {};
-          console.log("FIRESTORE_DOCUMENT_EXISTS=true");
-          console.log("TOP_LEVEL_KEY_COUNT=" + Object.keys(fields).length);
-          console.log("TOP_LEVEL_KEYS=" + Object.keys(fields).sort().join(","));
+          auditDocument("PRIMARY", body);
 
-          const keys = [
-            "profiles", "transactions", "cards", "cardPurchases", "investments",
-            "goals", "netWorthHistory", "accounts", "financialInstitutions",
-            "investmentInstitutions", "incomeCategoryCatalog",
-            "expenseCategoryCatalog", "investmentCategoryCatalog",
-            "goalCategoryCatalog"
-          ];
+          const backupUrl = "https://firestore.googleapis.com/v1/projects/" + projectId +
+            "/databases/(default)/documents/" +
+            ["artifacts", appId, "public", "data", "finances", "shared_state_backup_weekly"].map(encodeURIComponent).join("/");
+          const backupResponse = await fetch(backupUrl, {
+            headers: { Authorization: "Bearer " + authBody.idToken }
+          });
+          const backupBody = await backupResponse.json();
 
-          for (const key of keys) {
-            const values = fields[key]?.arrayValue?.values;
-            const type = fields[key]?.arrayValue ? "array" : fields[key]?.mapValue ? "object" : fields[key] ? "other" : "missing";
-            console.log(key + "_TYPE=" + type);
-            if (type === "array") console.log(key + "_COUNT=" + (Array.isArray(values) ? values.length : 0));
+          if (backupResponse.status === 404 || backupBody.error?.status === "NOT_FOUND") {
+            console.log("BACKUP_DOCUMENT_EXISTS=false");
+          } else if (!backupResponse.ok) {
+            console.log("BACKUP_AUDIT_ERROR=" + (backupBody.error?.message || ("HTTP " + backupResponse.status)));
+          } else {
+            auditDocument("BACKUP", backupBody);
           }
           NODE
