@@ -10,77 +10,76 @@ permissions:
 jobs:
   audit-firestore:
     runs-on: ubuntu-latest
+    timeout-minutes: 3
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Auditar documento compartilhado
+      - name: Auditoria somente leitura
         run: |
           node --input-type=module <<'NODE'
-          import { initializeApp } from "firebase/app";
-          import { getAuth, signInAnonymously } from "firebase/auth";
-          import { getFirestore, doc, getDoc } from "firebase/firestore";
+          import { readFileSync } from "node:fs";
 
-          const firebaseConfig = {
-            apiKey: "AIzaSyAvdngV2HMKdAIUmK1f9IF0gm4uEXPdd44",
-            authDomain: "fluxo-de-caixa-59dd1.firebaseapp.com",
-            projectId: "fluxo-de-caixa-59dd1",
-            storageBucket: "fluxo-de-caixa-59dd1.appspot.com",
-            messagingSenderId: "367352854109",
-            appId: "1:367352854109:web:a6273752e5a7ea891c305e"
-          };
+          const source = readFileSync("src/App.jsx", "utf8");
+          const apiKey = source.match(/apiKey:\s*"([^"]+)"/)?.[1];
+          const projectId = source.match(/projectId:\s*"([^"]+)"/)?.[1];
+          const appId = source.match(/const appId = "([^"]+)"/)?.[1];
 
-          const app = initializeApp(firebaseConfig);
-          const auth = getAuth(app);
-          const db = getFirestore(app);
-          await signInAnonymously(auth);
+          if (!apiKey || !projectId || !appId) {
+            console.log("FIRESTORE_AUDIT_CONFIG_ERROR=true");
+            process.exit(1);
+          }
 
-          const ref = doc(db, "artifacts", "fluxo-casal-producao", "public", "data", "finances", "shared_state");
-          const snap = await getDoc(ref);
+          const authUrl = "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=" + apiKey;
+          const authResponse = await fetch(authUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ returnSecureToken: true })
+          });
+          const authBody = await authResponse.json();
 
-          if (!snap.exists()) {
+          if (!authResponse.ok) {
+            console.log("FIRESTORE_AUDIT_AUTH_ERROR=" + (authBody.error?.message || ("HTTP " + authResponse.status)));
+            process.exit(1);
+          }
+
+          const path = ["artifacts", appId, "public", "data", "finances", "shared_state"]
+            .map(encodeURIComponent).join("/");
+          const url = "https://firestore.googleapis.com/v1/projects/" + projectId +
+            "/databases/(default)/documents/" + path;
+
+          const response = await fetch(url, {
+            headers: { Authorization: "Bearer " + authBody.idToken }
+          });
+          const body = await response.json();
+
+          if (response.status === 404 || body.error?.status === "NOT_FOUND") {
             console.log("FIRESTORE_DOCUMENT_EXISTS=false");
             process.exit(0);
           }
 
-          const data = snap.data();
-          console.log("FIRESTORE_DOCUMENT_EXISTS=true");
-          console.log("TOP_LEVEL_KEYS=" + Object.keys(data).sort().join(","));
+          if (!response.ok) {
+            console.log("FIRESTORE_AUDIT_ERROR=" + (body.error?.message || ("HTTP " + response.status)));
+            process.exit(1);
+          }
 
-          const collections = [
-            "profiles",
-            "transactions",
-            "cards",
-            "cardPurchases",
-            "investments",
-            "goals",
-            "netWorthHistory",
-            "paidStatements",
-            "accounts",
-            "financialInstitutions",
-            "investmentInstitutions",
-            "incomeCategoryCatalog",
-            "expenseCategoryCatalog",
-            "investmentCategoryCatalog",
+          const fields = body.fields || {};
+          console.log("FIRESTORE_DOCUMENT_EXISTS=true");
+          console.log("TOP_LEVEL_KEY_COUNT=" + Object.keys(fields).length);
+          console.log("TOP_LEVEL_KEYS=" + Object.keys(fields).sort().join(","));
+
+          const keys = [
+            "profiles", "transactions", "cards", "cardPurchases", "investments",
+            "goals", "netWorthHistory", "accounts", "financialInstitutions",
+            "investmentInstitutions", "incomeCategoryCatalog",
+            "expenseCategoryCatalog", "investmentCategoryCatalog",
             "goalCategoryCatalog"
           ];
 
-          for (const key of collections) {
-            const value = data[key];
-            if (Array.isArray(value)) {
-              console.log(`${key}_COUNT=${value.length}`);
-            } else if (value && typeof value === "object") {
-              console.log(`${key}_TYPE=object`);
-            } else {
-              console.log(`${key}_MISSING_OR_EMPTY=true`);
-            }
+          for (const key of keys) {
+            const values = fields[key]?.arrayValue?.values;
+            const type = fields[key]?.arrayValue ? "array" : fields[key]?.mapValue ? "object" : fields[key] ? "other" : "missing";
+            console.log(key + "_TYPE=" + type);
+            if (type === "array") console.log(key + "_COUNT=" + (Array.isArray(values) ? values.length : 0));
           }
           NODE
