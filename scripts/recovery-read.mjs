@@ -5,69 +5,60 @@ const key = source.match(/apiKey:\s*"([^"]+)"/)?.[1];
 const project = source.match(/projectId:\s*"([^"]+)"/)?.[1];
 if (!key || !project) throw new Error("config missing");
 
-const base = "https://firestore.googleapis.com/v1/projects/" + project + "/databases/(default)";
-const authUrl = "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=" + key;
-const authRes = await fetch(authUrl, {
-  method: "POST",
-  headers: {"Content-Type":"application/json"},
-  body: JSON.stringify({returnSecureToken:true})
+const authRes = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=" + key, {
+  method:"POST",
+  headers:{"Content-Type":"application/json"},
+  body:JSON.stringify({returnSecureToken:true})
 });
 const auth = await authRes.json();
 if (!authRes.ok) throw new Error(JSON.stringify(auth));
+const headers = {Authorization:"Bearer " + auth.idToken};
 
-const hdr = {"Content-Type":"application/json", "Authorization":"Bearer " + auth.idToken};
+const base = "https://firestore.googleapis.com/v1/projects/" + project + "/databases/(default)/documents";
 const apps = ["fluxo-casal-producao","fluxo-casal-compartilhado-oficial-2026"];
 
 function pathFor(app) {
-  return base + "/documents/artifacts/" + encodeURIComponent(app) + "/public/data/finances/shared_state";
+  return base + "/artifacts/" + encodeURIComponent(app) + "/public/data/finances/shared_state";
 }
-function count(f,k) {
-  const a=f?.[k]?.arrayValue?.values;
-  return Array.isArray(a) ? a.length : 0;
-}
-function info(item) {
-  const f=item?.found?.fields||{};
+function counts(body) {
+  const f=body?.fields||{};
+  const get=k=>Array.isArray(f[k]?.arrayValue?.values)?f[k].arrayValue.values.length:0;
   return {
-    profiles:count(f,"profiles"),
-    transactions:count(f,"transactions"),
-    cards:count(f,"cards"),
-    cardPurchases:count(f,"cardPurchases"),
-    investments:count(f,"investments"),
-    goals:count(f,"goals"),
-    netWorthHistory:count(f,"netWorthHistory")
+    profiles:get("profiles"),
+    transactions:get("transactions"),
+    cards:get("cards"),
+    cardPurchases:get("cardPurchases"),
+    investments:get("investments"),
+    goals:get("goals"),
+    netWorthHistory:get("netWorthHistory"),
+    keys:Object.keys(f).length
   };
 }
 
-const samples=[];
-for (let h=0; h<=48; h++) {
-  samples.push(new Date(Date.parse("2026-10-08T00:00:00Z")+h*3600000).toISOString());
-}
+const now = new Date();
+const samples = [
+  new Date(now.getTime()-5*60*1000),
+  new Date(Date.parse("2026-10-09T20:00:00Z")),
+  new Date(Date.parse("2026-10-09T18:00:00Z")),
+  new Date(Date.parse("2026-10-09T16:00:00Z")),
+  new Date(Date.parse("2026-10-09T12:00:00Z")),
+  new Date(Date.parse("2026-10-09T00:00:00Z")),
+  new Date(Date.parse("2026-10-08T23:00:00Z")),
+  new Date(Date.parse("2026-10-08T22:00:00Z")),
+  new Date(Date.parse("2026-10-08T21:00:00Z")),
+  new Date(Date.parse("2026-10-08T20:00:00Z")),
+  new Date(Date.parse("2026-10-08T19:00:00Z")),
+  new Date(Date.parse("2026-10-08T18:00:00Z")),
+  new Date(Date.parse("2026-10-08T17:00:00Z")),
+  new Date(Date.parse("2026-10-08T16:00:00Z"))
+];
 
-let best=null;
-for (const readTime of samples) {
-  for (const app of apps) {
-    const res=await fetch(base+"/documents:batchGet",{
-      method:"POST",headers:hdr,
-      body:JSON.stringify({documents:[pathFor(app)],readTime})
-    });
-    const body=await res.json();
-    if (!res.ok) {
-      console.log("READ_ERROR",app,readTime,body?.error?.message||res.status);
-      continue;
-    }
-    const item=(body.responses||[])[0];
-    const s=info(item);
-    const score=s.transactions+s.cards+s.cardPurchases+s.investments+s.goals+s.netWorthHistory;
-    if (score>0 && s.profiles>=2) {
-      console.log("FOUND",app,readTime,JSON.stringify(s));
-      if(!best || readTime>best.readTime || (readTime===best.readTime && score>best.score)) {
-        best={app,readTime,score,summary:s,fields:item.found.fields};
-      }
-    }
+for (const app of apps) {
+  for (const t of samples) {
+    const readTime = t.toISOString().replace(/\.\d{3}Z$/, "Z");
+    const res = await fetch(pathFor(app) + "?readTime=" + encodeURIComponent(readTime), {headers});
+    const body = await res.json();
+    const s=counts(body);
+    console.log("PITR",app,readTime,"status="+res.status,"summary="+JSON.stringify(s),"error="+(body?.error?.message||""));
   }
 }
-if (!best) {
-  console.log("FOUND_NONE");
-  process.exit(0);
-}
-console.log("BEST",JSON.stringify({app:best.app,readTime:best.readTime,summary:best.summary}));
