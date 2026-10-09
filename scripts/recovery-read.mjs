@@ -15,6 +15,10 @@ if (!authRes.ok) throw new Error(JSON.stringify(auth));
 const headers = {Authorization:"Bearer " + auth.idToken};
 
 const base = "https://firestore.googleapis.com/v1/projects/" + project + "/databases/(default)/documents";
+const dbMeta = "https://firestore.googleapis.com/v1/projects/" + project + "/databases/(default)";
+const metaRes = await fetch(dbMeta,{headers});
+const metaBody = await metaRes.json();
+console.log("DB_META",metaRes.status,JSON.stringify(metaRes.ok ? {pointInTimeRecoveryEnablement:metaBody.pointInTimeRecoveryEnablement,versionRetentionPeriod:metaBody.versionRetentionPeriod,earliestVersionTime:metaBody.earliestVersionTime,updateTime:metaBody.updateTime}:metaBody?.error||metaBody));
 const apps = ["fluxo-casal-producao","fluxo-casal-compartilhado-oficial-2026"];
 
 function pathFor(app) {
