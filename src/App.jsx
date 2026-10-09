@@ -149,6 +149,11 @@ function writeLocalBackup(key, value) {
   }
 }
 
+function localStateScore(value) {
+  if (!value || typeof value !== "object") return 0;
+  return (Array.isArray(value.profiles) ? value.profiles.length * 1000 : 0) + PERSISTENCE_DATA_KEYS.reduce((n, k) => n + (Array.isArray(value[k]) ? value[k].length : 0), 0) * 10;
+}
+
 
 const fmtDate = (s) => {
   if (!s) return "";
