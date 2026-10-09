@@ -13,5 +13,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Run recovery reader
-        run: node scripts/recovery-read.mjs
+      - name: Check legacy candidate
+        run: |
+          sed -i 's/fluxo-casal-compartilhado-oficial-2026/fluxo-casal-compartilhado-oficial","fluxo-casal-compartilhado-oficial-2026/' scripts/recovery-read.mjs
+          node scripts/recovery-read.mjs
