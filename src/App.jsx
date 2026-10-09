@@ -111,6 +111,44 @@ function getInvestmentSummary(data, profileFilter = "all") {
   return { items, invested, market, gain, gainPct, count: items.length };
 }
 
+const LOCAL_GOOD_BACKUP_KEY = "fluxo-casal-last-good-v1";
+const LOCAL_PREVIOUS_BACKUP_KEY = "fluxo-casal-previous-good-v1";
+const PERSISTENCE_DATA_KEYS = ["transactions", "cards", "cardPurchases", "investments", "goals", "netWorthHistory"];
+
+function clonePersistedData(value) {
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (e) {
+    return value;
+  }
+}
+
+function hasMeaningfulUserData(value) {
+  if (!value || typeof value !== "object") return false;
+  if (PERSISTENCE_DATA_KEYS.some((key) => Array.isArray(value[key]) && value[key].length > 0)) return true;
+  return Object.values(value.initialBalances || {}).some((amount) => Number(amount) !== 0);
+}
+
+function readLocalBackup(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return hasMeaningfulUserData(parsed) ? parsed : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function writeLocalBackup(key, value) {
+  if (!hasMeaningfulUserData(value)) return;
+  try {
+    localStorage.setItem(key, JSON.stringify(clonePersistedData(value)));
+  } catch (e) {
+    console.warn("Não foi possível atualizar o backup local:", e);
+  }
+}
+
 
 const fmtDate = (s) => {
   if (!s) return "";
@@ -333,6 +371,8 @@ export default function App() {
   const containerRef = useRef(null);
   const skipNextSave = useRef(true);
   const saveTimer = useRef(null);
+  const hasHydratedFromServer = useRef(false);
+  const lastPersistedDataRef = useRef(null);
 
   useEffect(() => {
     if (tab === "budgets" || tab === "psalms") setTab("dashboard");
@@ -374,42 +414,118 @@ export default function App() {
   useEffect(() => {
     if (!user || !db) return;
     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'finances', 'shared_state');
-    const unsubscribe = onSnapshot(docRef, async (snapshot) => {
+    const backupRef = doc(db, 'artifacts', appId, 'public', 'data', 'finances', 'shared_state_backup_weekly');
+
+    const hydrate = async (snapshot) => {
+      hasHydratedFromServer.current = false;
+      skipNextSave.current = true;
+
+      let hydratedData;
+
       if (snapshot.exists()) {
         const serverData = snapshot.data();
         const profiles = Array.isArray(serverData.profiles) && serverData.profiles.length
-          ? serverData.profiles.some((p) => p.key === "p3")
+          ? (serverData.profiles.some((p) => p.key === "p3")
             ? serverData.profiles
-            : [...serverData.profiles, { key: "p3", name: "Outros" }]
+            : [...serverData.profiles, { key: "p3", name: "Outros" }])
           : DEFAULT_STATE.profiles;
         const initialBalances = { ...DEFAULT_STATE.initialBalances, ...(serverData.initialBalances || {}) };
-        setData(migrateData({ ...serverData, profiles, initialBalances }));
-        setReady(true);
-        setSyncStatus("synced");
+        hydratedData = migrateData({ ...serverData, profiles, initialBalances });
+
+        // Proteção de recuperação: se a nuvem estiver vazia, procurar a última cópia segura.
+        if (!hasMeaningfulUserData(hydratedData)) {
+          try {
+            const cloudBackup = await getDoc(backupRef);
+            if (cloudBackup.exists()) {
+              const candidate = migrateData(cloudBackup.data());
+              if (hasMeaningfulUserData(candidate)) hydratedData = candidate;
+            }
+          } catch (e) {
+            console.warn("Não foi possível consultar o backup da nuvem:", e);
+          }
+        }
+
+        if (!hasMeaningfulUserData(hydratedData)) {
+          const localBackup = readLocalBackup(LOCAL_PREVIOUS_BACKUP_KEY) || readLocalBackup(LOCAL_GOOD_BACKUP_KEY);
+          if (localBackup) hydratedData = migrateData(localBackup);
+        }
+
+        // Só recupera a nuvem automaticamente quando existe uma cópia realmente útil.
+        if (hasMeaningfulUserData(hydratedData) && !hasMeaningfulUserData(migrateData({ ...serverData, profiles, initialBalances }))) {
+          await setDoc(docRef, hydratedData);
+        }
       } else {
-        await setDoc(docRef, DEFAULT_STATE);
-        setData(migrateData(DEFAULT_STATE));
-        setReady(true);
-        setSyncStatus("synced");
+        const localBackup = readLocalBackup(LOCAL_PREVIOUS_BACKUP_KEY) || readLocalBackup(LOCAL_GOOD_BACKUP_KEY);
+        if (localBackup) {
+          hydratedData = migrateData(localBackup);
+          await setDoc(docRef, hydratedData);
+        } else {
+          hydratedData = migrateData(DEFAULT_STATE);
+          // Documento novo: somente aqui o estado padrão pode ser criado.
+          await setDoc(docRef, hydratedData);
+        }
       }
+
+      lastPersistedDataRef.current = clonePersistedData(hydratedData);
+      writeLocalBackup(LOCAL_GOOD_BACKUP_KEY, hydratedData);
+      setData(hydratedData);
+      setReady(true);
+      hasHydratedFromServer.current = true;
+      setSyncStatus("synced");
+    };
+
+    const unsubscribe = onSnapshot(docRef, (snapshot) => {
+      hydrate(snapshot).catch((err) => {
+        console.error("Hydration error", err);
+        setSyncStatus("error");
+        setReady(true);
+      });
     }, (err) => {
       console.error("Sync error", err);
       setSyncStatus("error");
-      setReady(true); 
+      setReady(true);
     });
+
     return () => unsubscribe();
   }, [user]);
 
   useEffect(() => {
-    if (!ready || !data || !user || !db) return;
+    if (!ready || !data || !user || !db || !hasHydratedFromServer.current) return;
     if (skipNextSave.current) { skipNextSave.current = false; return; }
-    
+
+    const pendingData = clonePersistedData(data);
+    const previousData = lastPersistedDataRef.current;
+
+    // Uma queda de um estado com dados para um estado totalmente vazio sem ação explícita
+    // é tratada como provável sobrescrita acidental e não é enviada à nuvem.
+    if (previousData && hasMeaningfulUserData(previousData) && !hasMeaningfulUserData(pendingData)) {
+      writeLocalBackup(LOCAL_PREVIOUS_BACKUP_KEY, previousData);
+      setData(clonePersistedData(previousData));
+      setSyncStatus("error");
+      showToast("Alteração bloqueada para proteger seus dados.");
+      return;
+    }
+
     setSyncStatus("saving");
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       try {
         const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'finances', 'shared_state');
-        await setDoc(docRef, data);
+        const backupRef = doc(db, 'artifacts', appId, 'public', 'data', 'finances', 'shared_state_backup_weekly');
+
+        if (previousData && hasMeaningfulUserData(previousData)) {
+          writeLocalBackup(LOCAL_PREVIOUS_BACKUP_KEY, previousData);
+          try {
+            // Backup fica uma versão atrás do estado principal, permitindo recuperação.
+            await setDoc(backupRef, clonePersistedData(previousData));
+          } catch (backupError) {
+            console.warn("Backup da nuvem falhou; salvamento principal continuará:", backupError);
+          }
+        }
+
+        await setDoc(docRef, pendingData);
+        lastPersistedDataRef.current = clonePersistedData(pendingData);
+        writeLocalBackup(LOCAL_GOOD_BACKUP_KEY, pendingData);
         setSyncStatus("synced");
       } catch(e) {
         console.error("Save err", e);
