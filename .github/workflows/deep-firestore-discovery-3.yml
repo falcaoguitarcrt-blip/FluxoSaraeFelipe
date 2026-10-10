@@ -1,0 +1,75 @@
+name: Deep Firestore Discovery 3
+on:
+  pull_request:
+    branches: ["main"]
+permissions:
+  contents: read
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Discover Firestore paths including missing parents
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const source=fs.readFileSync("src/App.jsx","utf8");
+          const key=source.match(/apiKey:\s*"([^"]+)"/)?.[1];
+          const project=source.match(/projectId:\s*"([^"]+)"/)?.[1];
+          if(!key||!project) throw new Error("config missing");
+          const ar=await fetch("https://identitytoolkit.googleapis.com/v1/accounts:signUp?key="+key,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({returnSecureToken:true})});
+          const auth=await ar.json(); if(!ar.ok) throw new Error(JSON.stringify(auth));
+          const headers={Authorization:"Bearer "+auth.idToken};
+          const base="https://firestore.googleapis.com/v1/projects/"+project+"/databases/(default)/documents";
+          async function listDocuments(collectionPath, params=""){
+            const u=base+"/"+collectionPath.split("/").map(encodeURIComponent).join("/")+"?pageSize=300&showMissing=true"+params;
+            const r=await fetch(u,{headers}); const b=await r.json();
+            return {r,b};
+          }
+          async function getDoc(path){
+            const u=base+"/"+path.split("/").map(encodeURIComponent).join("/");
+            const r=await fetch(u,{headers}); const b=await r.json(); return {r,b};
+          }
+          async function listCols(docPath){
+            const u=base+"/"+docPath.split("/").map(encodeURIComponent).join(":listCollectionIds");
+            const r=await fetch(u,{method:"POST",headers:{...headers,"Content-Type":"application/json"},body:JSON.stringify({pageSize:100})});
+            const b=await r.json(); return r.ok?(b.collectionIds||[]):[];
+          }
+          function count(f,k){const v=f?.[k]?.arrayValue?.values; return Array.isArray(v)?v.length:0}
+          function summary(d){const f=d?.fields||{};return {createTime:d?.createTime||null,updateTime:d?.updateTime||null,keys:Object.keys(f).length,transactions:count(f,"transactions"),investments:count(f,"investments"),cards:count(f,"cards"),cardPurchases:count(f,"cardPurchases"),goals:count(f,"goals"),profiles:count(f,"profiles"),netWorthHistory:count(f,"netWorthHistory")}}
+          const top=await listDocuments("artifacts");
+          console.log("ARTIFACTS_STATUS",top.r.status);
+          const parents=top.b.documents||[];
+          console.log("ARTIFACT_PARENT_COUNT",parents.length);
+          for(const d of parents){
+            const p=d.name.replace(base+"/","");
+            console.log("ARTIFACT_PARENT",p,"missing="+(!d.fields),"update="+(d.updateTime||""));
+            const cols=await listCols(p);
+            console.log("ARTIFACT_COLLECTIONS",p,JSON.stringify(cols));
+            for(const c of cols){
+              const sub=await listDocuments(p+"/"+c);
+              console.log("COLLECTION",p+"/"+c,"docs="+(sub.b.documents?.length||0));
+              for(const sd of (sub.b.documents||[])){
+                const sp=sd.name.replace(base+"/","");
+                console.log("DOC",sp,JSON.stringify(summary(sd)));
+                if(summary(sd).transactions||summary(sd).investments||summary(sd).cards||summary(sd).cardPurchases||summary(sd).goals||summary(sd).netWorthHistory){
+                  console.log("FINANCE_HIT",sp);
+                  console.log("FINANCE_JSON",JSON.stringify(sd));
+                }
+              }
+            }
+          }
+          for(const topName of ["shared","users"]){
+            const t=await listDocuments(topName);
+            console.log("TOP",topName,"status="+t.r.status,"docs="+(t.b.documents?.length||0));
+            for(const d of (t.b.documents||[])) console.log("TOP_DOC",d.name.replace(base+"/",""),JSON.stringify(summary(d)));
+          }
+          for(const p of [
+            "artifacts/fluxo-casal-producao/public/data/finances/shared_state",
+            "artifacts/fluxo-casal-compartilhado-oficial-2026/public/data/finances/shared_state",
+            "artifacts/fluxo-casal-compartilhado-oficial/public/data/finances/shared_state"
+          ]){
+            const g=await getDoc(p); console.log("KNOWN",p,"status="+g.r.status,JSON.stringify(summary(g.b)));
+          }
+          NODE
