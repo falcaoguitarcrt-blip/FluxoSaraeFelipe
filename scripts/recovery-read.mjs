@@ -128,3 +128,54 @@ for (const app of ["fluxo-casal-producao","fluxo-casal-compartilhado-oficial","f
   console.log("CURRENT_UPDATE", app, res.status, body.updateTime || "", body.createTime || "");
 }
 console.log("CURRENT_DOC_UPDATE_TIMES_END");
+
+console.log("=== RECURSIVE DISCOVERY ===");
+async function listCollections(parentPath) {
+  const url = base + "/" + (parentPath ? parentPath.split("/").map(encodeURIComponent).join("/") + "/" : "") + ":listCollectionIds";
+  const res = await fetch(url, {method:"POST", headers:{...headers,"Content-Type":"application/json"}, body:JSON.stringify({pageSize:100})});
+  const body = await res.json();
+  return res.ok ? (body.collectionIds || []) : [];
+}
+async function listDocs(collectionPath) {
+  const url = base + "/" + collectionPath.split("/").map(encodeURIComponent).join("/");
+  const res = await fetch(url, {headers});
+  const body = await res.json();
+  return res.ok ? (body.documents || []) : [];
+}
+async function walkDoc(docPath, depth=0) {
+  if (depth > 8) return;
+  const cols = await listCollections(docPath);
+  for (const col of cols) {
+    const colPath = docPath + "/" + col;
+    const docs = await listDocs(colPath);
+    for (const d of docs) {
+      const f = d.fields || {};
+      const keys = Object.keys(f);
+      const summary = {
+        keys: keys.length,
+        profiles: countField(f,"profiles"),
+        transactions: countField(f,"transactions"),
+        cards: countField(f,"cards"),
+        cardPurchases: countField(f,"cardPurchases"),
+        investments: countField(f,"investments"),
+        goals: countField(f,"goals"),
+        netWorthHistory: countField(f,"netWorthHistory")
+      };
+      if (summary.transactions || summary.cards || summary.cardPurchases || summary.investments || summary.goals || summary.netWorthHistory) {
+        console.log("RECURSIVE_FINANCE_DATA", d.name, JSON.stringify(summary));
+        console.log("RECURSIVE_FINANCE_JSON", JSON.stringify(d));
+      } else {
+        console.log("RECURSIVE_DOC", d.name, JSON.stringify(summary));
+      }
+      await walkDoc(d.name.replace(base + "/",""), depth+1);
+    }
+  }
+}
+const topColls = ["artifacts","shared","users"];
+for (const top of topColls) {
+  const docs = await listDocs(top);
+  console.log("RECURSIVE_TOP", top, "count="+docs.length);
+  for (const d of docs) {
+    await walkDoc(d.name.replace(base + "/",""), 0);
+  }
+}
