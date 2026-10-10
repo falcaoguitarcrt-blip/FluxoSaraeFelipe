@@ -1,0 +1,86 @@
+name: Deep Firestore Audit 2
+on:
+  pull_request:
+    branches: ["main"]
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read Firestore recursively (read-only)
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const source=fs.readFileSync("src/App.jsx","utf8");
+          const key=source.match(/apiKey:\s*"([^"]+)"/)?.[1];
+          const project=source.match(/projectId:\s*"([^"]+)"/)?.[1];
+          if(!key||!project) throw new Error("Firebase config missing");
+          const authRes=await fetch("https://identitytoolkit.googleapis.com/v1/accounts:signUp?key="+key,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({returnSecureToken:true})});
+          const auth=await authRes.json(); if(!authRes.ok) throw new Error(JSON.stringify(auth));
+          const headers={Authorization:"Bearer "+auth.idToken};
+          const base="https://firestore.googleapis.com/v1/projects/"+project+"/databases/(default)/documents";
+          async function get(path){
+            const u=base+"/"+path.split("/").map(encodeURIComponent).join("/");
+            const r=await fetch(u,{headers}); const b=await r.json(); return {r,b};
+          }
+          async function list(path){
+            const u=base+"/"+path.split("/").map(encodeURIComponent).join("/");
+            const r=await fetch(u,{headers}); const b=await r.json(); return {r,b};
+          }
+          async function cols(docPath){
+            const u=base+"/"+docPath.split("/").map(encodeURIComponent).join("/") + ":listCollectionIds";
+            const r=await fetch(u,{method:"POST",headers:{...headers,"Content-Type":"application/json"},body:JSON.stringify({pageSize:100})});
+            const b=await r.json(); return r.ok?(b.collectionIds||[]):[];
+          }
+          function count(f,k){const v=f?.[k]?.arrayValue?.values; return Array.isArray(v)?v.length:0}
+          function summary(doc){
+            const f=doc.fields||{};
+            return {
+              createTime:doc.createTime||null, updateTime:doc.updateTime||null,
+              keys:Object.keys(f).length,
+              profiles:count(f,"profiles"), transactions:count(f,"transactions"), cards:count(f,"cards"),
+              cardPurchases:count(f,"cardPurchases"), investments:count(f,"investments"), goals:count(f,"goals"),
+              netWorthHistory:count(f,"netWorthHistory"), bills:count(f,"bills"), accounts:count(f,"accounts")
+            };
+          }
+          const seen=new Set(); let financeHits=0;
+          async function walkDoc(path,depth){
+            if(depth>8||seen.has(path)) return; seen.add(path);
+            const {r,b}=await get(path);
+            if(r.ok){
+              const s=summary(b);
+              console.log("DOC",path,JSON.stringify(s));
+              if(s.transactions||s.cards||s.cardPurchases||s.investments||s.goals||s.netWorthHistory){
+                financeHits++;
+                console.log("FINANCE_HIT",path);
+                console.log("FINANCE_DOC_JSON",JSON.stringify(b));
+              }
+              const cs=await cols(path);
+              for(const c of cs){
+                const sub=await list(path+"/"+c);
+                if(!sub.r.ok) continue;
+                for(const d of (sub.b.documents||[]).slice(0,200)){
+                  await walkDoc(d.name.replace(base+"/",""),depth+1);
+                }
+              }
+            }
+          }
+          for(const top of ["artifacts","shared","users"]){
+            const {r,b}=await list(top);
+            console.log("TOP",top,"status="+r.status,"docs="+(b.documents?.length||0));
+            for(const d of (b.documents||[]).slice(0,200)){
+              await walkDoc(d.name.replace(base+"/",""),0);
+            }
+          }
+          console.log("FINANCE_HIT_COUNT="+financeHits);
+          for(const p of [
+            "artifacts/fluxo-casal-producao/public/data/finances/shared_state",
+            "artifacts/fluxo-casal-compartilhado-oficial-2026/public/data/finances/shared_state",
+            "artifacts/fluxo-casal-compartilhado-oficial/public/data/finances/shared_state"
+          ]){
+            const {r,b}=await get(p); console.log("KNOWN",p,"status="+r.status,JSON.stringify(summary(b)));
+          }
+          NODE
