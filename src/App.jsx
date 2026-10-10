@@ -571,6 +571,15 @@ export default function App() {
         await setDoc(docRef, pendingData);
         lastPersistedDataRef.current = clonePersistedData(pendingData);
         writeLocalBackup(LOCAL_GOOD_BACKUP_KEY, pendingData);
+
+        // Mantém também a cópia em nuvem atualizada após cada salvamento bem-sucedido.
+        // Assim, mesmo o primeiro lançamento/ativo cadastrado já possui uma segunda cópia recuperável.
+        try {
+          await setDoc(backupRef, clonePersistedData(pendingData));
+        } catch (backupError) {
+          console.warn("Não foi possível atualizar o backup atual da nuvem:", backupError);
+        }
+
         setSyncStatus("synced");
       } catch(e) {
         console.error("Save err", e);
