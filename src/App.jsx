@@ -188,7 +188,11 @@ try {
   console.error("Erro ao inicializar Firebase:", error);
 }
 
-const appId = "fluxo-casal-producao"; 
+const appId = "fluxo-casal-producao";
+const LEGACY_APP_IDS = [
+  "fluxo-casal-compartilhado-oficial",
+  "fluxo-casal-compartilhado-oficial-2026",
+]; 
 
 async function loadTheme() {
   try { const res = localStorage.getItem(THEME_KEY); if (res) return res; } catch (e) {}
@@ -433,6 +437,8 @@ export default function App() {
         hydratedData = migrateData({ ...serverData, profiles, initialBalances });
 
         // Proteção de recuperação: se a nuvem estiver vazia, procurar a última cópia segura.
+        let recoveredFromLegacyCloud = false;
+
         if (!hasMeaningfulUserData(hydratedData)) {
           try {
             const cloudBackup = await getDoc(backupRef);
@@ -445,13 +451,52 @@ export default function App() {
           }
         }
 
+        // Compatibilidade com as versões anteriores do aplicativo.
+        // O projeto usava IDs de documento diferentes no mesmo Firebase.
+        // Nunca substitui dados válidos da produção. Só consulta os legados quando a produção está vazia.
+        if (!hasMeaningfulUserData(hydratedData)) {
+          for (const legacyAppId of LEGACY_APP_IDS) {
+            try {
+              const legacyRef = doc(db, "artifacts", legacyAppId, "public", "data", "finances", "shared_state");
+              const legacySnap = await getDoc(legacyRef);
+
+              if (legacySnap.exists()) {
+                const candidate = migrateData(legacySnap.data());
+                if (hasMeaningfulUserData(candidate)) {
+                  hydratedData = candidate;
+                  recoveredFromLegacyCloud = true;
+                  console.info("Dados recuperados do Firestore legado:", legacyAppId);
+                  break;
+                }
+              }
+
+              if (!hasMeaningfulUserData(hydratedData)) {
+                const legacyBackupRef = doc(db, "artifacts", legacyAppId, "public", "data", "finances", "shared_state_backup_weekly");
+                const legacyBackupSnap = await getDoc(legacyBackupRef);
+                if (legacyBackupSnap.exists()) {
+                  const backupCandidate = migrateData(legacyBackupSnap.data());
+                  if (hasMeaningfulUserData(backupCandidate)) {
+                    hydratedData = backupCandidate;
+                    recoveredFromLegacyCloud = true;
+                    console.info("Dados recuperados do backup Firestore legado:", legacyAppId);
+                    break;
+                  }
+                }
+              }
+            } catch (e) {
+              console.warn("Não foi possível consultar a origem legada:", legacyAppId, e);
+            }
+          }
+        }
+
         if (!hasMeaningfulUserData(hydratedData)) {
           const localBackup = readLocalBackup(LOCAL_PREVIOUS_BACKUP_KEY) || readLocalBackup(LOCAL_GOOD_BACKUP_KEY);
           if (localBackup) hydratedData = migrateData(localBackup);
         }
 
         // Só recupera a nuvem automaticamente quando existe uma cópia realmente útil.
-        if (hasMeaningfulUserData(hydratedData) && !hasMeaningfulUserData(migrateData({ ...serverData, profiles, initialBalances }))) {
+        // Dados legados/localizados só são promovidos para a produção quando a produção estava vazia.
+        if (hasMeaningfulUserData(hydratedData) && (!hasMeaningfulUserData(migrateData({ ...serverData, profiles, initialBalances })) || recoveredFromLegacyCloud)) {
           await setDoc(docRef, hydratedData);
         }
       } else {
