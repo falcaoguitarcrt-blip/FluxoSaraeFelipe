@@ -117,3 +117,5 @@ for (const app of apps) {
     console.log("DENSE",app,readTime,"status="+res.status,"summary="+JSON.stringify(s),"transactions="+JSON.stringify(detailed(f.transactions)),"investments="+JSON.stringify(detailed(f.investments)));
   }
 }
+
+console.log("DENSE_AUDIT_VERSION=2026-10-10T02:31Z");
