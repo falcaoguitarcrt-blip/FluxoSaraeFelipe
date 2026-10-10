@@ -1,8 +1,8 @@
 name: Recuperacao Firestore - auditoria temporaria
 
 on:
-  pull_request:
-    branches: ["main"]
+  push:
+    branches: ["recovery-firestore-audit"]
 
 permissions:
   contents: read
