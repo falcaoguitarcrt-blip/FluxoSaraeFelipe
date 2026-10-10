@@ -79,3 +79,41 @@ for (const app of apps) {
     console.log("PITR",app,readTime,"status="+res.status,"summary="+JSON.stringify(s),"error="+(body?.error?.message||""));
   }
 }
+
+
+const denseTimes = [];
+// Probe the recent historical window at 5-minute intervals.
+const start = new Date(Date.now() - 55 * 60 * 1000);
+for (let i = 0; i <= 11; i++) denseTimes.push(new Date(start.getTime() + i * 5 * 60 * 1000));
+
+function detailed(field) {
+  const v = field?.arrayValue?.values;
+  if (!Array.isArray(v)) return [];
+  return v.map((x, i) => {
+    const f = x?.mapValue?.fields || {};
+    const getString = (k) => f[k]?.stringValue ?? null;
+    const getNumber = (k) => f[k]?.doubleValue ?? f[k]?.integerValue ?? null;
+    return {
+      i,
+      id: getString("id"),
+      profileKey: getString("profileKey"),
+      description: getString("description"),
+      category: getString("category"),
+      institution: getString("institution"),
+      amount: getNumber("amount"),
+      investedAmount: getNumber("investedAmount"),
+      marketValue: getNumber("marketValue")
+    };
+  });
+}
+
+for (const app of apps) {
+  for (const t of denseTimes) {
+    const readTime = t.toISOString().replace(/\.\d{3}Z$/, "Z");
+    const res = await fetch(pathFor(app) + "?readTime=" + encodeURIComponent(readTime), {headers});
+    const body = await res.json();
+    const f = body?.fields || {};
+    const s = counts(body);
+    console.log("DENSE",app,readTime,"status="+res.status,"summary="+JSON.stringify(s),"transactions="+JSON.stringify(detailed(f.transactions)),"investments="+JSON.stringify(detailed(f.investments)));
+  }
+}
