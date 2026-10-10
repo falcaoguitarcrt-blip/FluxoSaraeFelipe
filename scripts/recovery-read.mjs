@@ -119,3 +119,12 @@ for (const app of apps) {
 }
 
 console.log("DENSE_AUDIT_VERSION=2026-10-10T02:31Z");
+
+
+console.log("CURRENT_DOC_UPDATE_TIMES_BEGIN");
+for (const app of ["fluxo-casal-producao","fluxo-casal-compartilhado-oficial","fluxo-casal-compartilhado-oficial-2026"]) {
+  const res = await fetch(pathFor(app));
+  const body = await res.json();
+  console.log("CURRENT_UPDATE", app, res.status, body.updateTime || "", body.createTime || "");
+}
+console.log("CURRENT_DOC_UPDATE_TIMES_END");
