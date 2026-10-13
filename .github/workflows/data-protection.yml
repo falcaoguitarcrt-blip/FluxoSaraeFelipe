@@ -1,0 +1,26 @@
+name: Data protection checks
+
+on:
+  push:
+    branches:
+      - audit/protecao-dados-2026-10
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run data-protection tests
+        run: npm run test:data-protection
+      - name: Build
+        run: npm run build
