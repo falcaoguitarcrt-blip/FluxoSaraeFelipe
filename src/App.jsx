@@ -11,7 +11,7 @@ import { DEFAULT_STATE, migrateData, getProfileCatalog, getAccountsForProfile } 
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from "recharts";
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, collection, setDoc, onSnapshot, getDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, doc, collection, onSnapshot, getDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
 
 const FONT_LINK_ID = "fluxo-casal-fonts";
 const STORAGE_KEY = "fluxo-casal-v4";
@@ -578,7 +578,7 @@ export default function App() {
 
         lastPersistedDataRef.current = clonePersistedData(pendingData);
         lastRawServerDataRef.current = clonePersistedData(pendingData);
-        writeLocalBackup(LOCAL_PREVIOUS_BACKUP_KEY, previousData || lastPersistedDataRef.current);
+        if (previousData && hasMeaningfulUserData(previousData)) writeLocalBackup(LOCAL_PREVIOUS_BACKUP_KEY, previousData);
         writeLocalBackup(LOCAL_GOOD_BACKUP_KEY, pendingData);
         setSyncStatus("synced");
       } catch(e) {
