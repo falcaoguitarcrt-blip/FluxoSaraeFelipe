@@ -111,7 +111,7 @@ function getInvestmentSummary(data, profileFilter = "all") {
   return { items, invested, market, gain, gainPct, count: items.length };
 }
 
-import { clonePersistedData, hasMeaningfulUserData, createHistoryRecord } from "./dataProtection";
+import { clonePersistedData, hasMeaningfulUserData, createHistoryRecord, snapshotsEqual } from "./dataProtection";
 
 const LOCAL_GOOD_BACKUP_KEY = "fluxo-casal-last-good-v1";
 const LOCAL_PREVIOUS_BACKUP_KEY = "fluxo-casal-previous-good-v1";
@@ -419,7 +419,7 @@ export default function App() {
 
       if (snapshot.exists()) {
         const rawServerData = snapshot.data();
-        lastRawServerDataRef.current = clonePersistedData(rawServerData);
+        lastRawServerDataRef.current = rawServerData;
         hydratedData = migrateData(rawServerData);
 
         if (!hasMeaningfulUserData(hydratedData)) {
@@ -563,7 +563,7 @@ export default function App() {
           }
 
           const latestServerData = latestSnapshot.data();
-          if (!rawBaseline || JSON.stringify(latestServerData) !== JSON.stringify(rawBaseline)) {
+          if (!rawBaseline || !snapshotsEqual(latestServerData, rawBaseline)) {
             throw new Error("O estado da nuvem mudou desde a última leitura. Recarregue para evitar sobrescrita concorrente.");
           }
 
@@ -577,7 +577,7 @@ export default function App() {
         });
 
         lastPersistedDataRef.current = clonePersistedData(pendingData);
-        lastRawServerDataRef.current = clonePersistedData(pendingData);
+        lastRawServerDataRef.current = pendingData;
         if (previousData && hasMeaningfulUserData(previousData)) writeLocalBackup(LOCAL_PREVIOUS_BACKUP_KEY, previousData);
         writeLocalBackup(LOCAL_GOOD_BACKUP_KEY, pendingData);
         setSyncStatus("synced");
