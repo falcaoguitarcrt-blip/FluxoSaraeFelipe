@@ -17,8 +17,12 @@ Commit-base: 7318e2497fc51f7b9bdfe97d3c3e8645791d8ddb
 - A detecção de dados relevantes foi separada em src/dataProtection.js e ampliada para considerar registros financeiros, contas personalizadas, categorias e configurações customizadas, limites, estados de faturas e campos desconhecidos preenchidos.
 - A hidratação impede criar automaticamente DEFAULT_STATE quando o documento principal não existe. Recuperações a partir de backup/local/IDs legados são tratadas como candidatas de revisão; a nuvem não é sobrescrita automaticamente.
 - Erros de leitura limpam o sinal de hidratação confiável e bloqueiam salvamentos.
-- O salvamento relê o documento principal e bloqueia quando ele está ausente ou diverge do último estado conhecido. É uma proteção best-effort, não uma transação atômica; ainda pode existir uma condição de corrida entre a leitura e a gravação.
-- shared_state_backup_weekly continua sendo um único documento substituível e não é um histórico independente.
+- O salvamento agora usa uma transação do Firestore: lê o documento principal, compara o estado com a última versão observada e, na mesma transação, grava uma versão histórica independente em `shared_state_versions/{versionId}` e atualiza `shared_state`. Uma divergência aborta a transação.
+- Cada versão histórica armazena identificador, timestamp do servidor, origem, versão do envelope e uma cópia do documento anterior, incluindo campos desconhecidos.
+- O mecanismo depende de as regras efetivas do Firestore permitirem leitura/escrita na subcoleção `shared_state_versions`. Como as regras não foram encontradas nem verificadas, a compatibilidade de permissões permanece pendente; se a gravação histórica for negada, a transação inteira deve falhar sem atualizar o documento principal.
+- Ainda não há interface de comparação/restauração nem política de retenção automática. As versões não devem ser apagadas automaticamente até que uma política de retenção e as permissões sejam revisadas.
+- A transação não foi executada contra o Firebase real. Os testes atuais validam o envelope e a preservação de campos, mas não substituem testes de integração com Firestore Emulator e duas sessões concorrentes.
+- `shared_state_backup_weekly` continua sendo um único documento substituível; a nova coleção de versões é uma estratégia separada implementada no código, pendente de validação de regras e integração.
 
 ## Testes e CI
 
@@ -32,8 +36,8 @@ Commit-base: 7318e2497fc51f7b9bdfe97d3c3e8645791d8ddb
 - Exportação administrativa independente do Firestore não realizada.
 - Regras de segurança do Firestore não encontradas no repositório consultado e não verificadas.
 - O login permanece anônimo; o PIN local não é autenticação do banco.
-- Backups históricos com retenção separada ainda não implementados.
-- Para garantir concorrência robusta, é necessário versionamento transacional no Firestore e teste real com dois clientes em ambiente isolado.
+- A gravação de versões históricas foi implementada no código da branch, mas a permissão efetiva, a criação real de versões e o comportamento em Firestore Emulator ainda não foram validados. Interface de comparação/restauração e retenção documentada continuam pendentes.
+- O caminho de salvamento foi convertido para transação atômica com verificação da versão-base; ainda é necessário validar com Firestore Emulator e dois clientes isolados, inclusive quando as regras negam a subcoleção histórica.
 - Não publicar nem mesclar enquanto o workflow e a revisão crítica não forem aprovados.
 
 ## Integridade e publicação
