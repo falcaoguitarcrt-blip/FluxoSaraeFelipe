@@ -125,3 +125,53 @@ Para desbloquear: obter uma execução observável do workflow na branch de audi
 - Nenhuma escrita, exclusão, migração ou restauração no Firebase de produção.
 - Nenhum dado financeiro real usado nos testes preparados.
 - A Fase 6.2 não autoriza iniciar restauração histórica nem qualquer operação de produção.
+
+
+## Fase 6.3 — execução comprovada e estado observado
+
+Data da verificação: 2026-10-13.
+
+### Estado inicial confirmado
+
+- HEAD inicial: `6cdcffe48ffa4aa774edb0bedf4a900942f78f9a`, commit `docs: record phase 6.2 evidence status and isolation guard`.
+- Comparação de `audit/protecao-dados-2026-10` contra a referência-base `7318e2497fc51f7b9bdfe97d3c3e8645791d8ddb`: 40 commits à frente, 0 atrás; merge-base retornado igual à referência-base.
+- Workflow configurado para eventos `push` na branch de auditoria e `pull_request` com destino à `main`. Etapas declaradas: instalar dependências, testes unitários, Firestore Emulator + testes de integração, build sem deploy.
+
+### Evidências e limitações reais desta verificação
+
+- **PENDENTE DE EVIDÊNCIA — execução do CI:** a consulta disponível de execuções associadas ao HEAD retornou uma lista vazia, mas o conector documenta que filtra apenas execuções de pull request. O status combinado também retornou uma lista vazia. Esses resultados não permitem concluir se houve execução de push. A página Actions e o endpoint público da API não puderam ser acessados por este ambiente; portanto não foi possível recuperar IDs de execução, jobs, códigos de saída ou logs. Nenhuma conclusão de sucesso ou falha foi inferida.
+- **PENDENTE DE EVIDÊNCIA — testes locais:** Node.js `v22.16.0`, npm `10.9.2` e Git `2.47.3` estão disponíveis. O comando `git clone --branch audit/protecao-dados-2026-10 --single-branch https://github.com/falcaoguitarcrt-blip/FluxoSaraeFelipe.git /tmp/FluxoSaraeFelipe` falhou com código de saída 128: `Could not resolve host: github.com`. Não foi possível instalar dependências, comprovar um emulador ativo, executar os testes unitários/de integração ou realizar o build localmente. Nenhum teste é marcado como aprovado com base apenas na existência dos arquivos.
+- **APROVADO — isolamento declarado no código:** a configuração de teste aponta o Firestore Emulator para `127.0.0.1:8080`; o setup de integração exige `GCLOUD_PROJECT=demo-fluxo-casal-test` e `FIRESTORE_EMULATOR_HOST=127.0.0.1:8080`, e valida `FIREBASE_CONFIG.projectId` quando essa variável existe. Isso comprova as barreiras declaradas no código, não a execução real nem a atividade do emulador.
+- **PENDENTE DE EVIDÊNCIA — cobertura de permissões:** há testes sintéticos para negação de escrita histórica e negação de escrita principal. Ainda não há cenário explícito para negar a leitura do documento principal. Os cenários de timeout, desconexão e reconexão não foram reproduzidos.
+- **PENDENTE DE EVIDÊNCIA — tipos de dados:** o comparador rejeita objetos não simples e valores não finitos/unsupported; a clonagem usa `JSON.stringify/JSON.parse` e, em caso de exceção, retorna o valor original. Não há evidência suficiente nesta revisão para concluir que todos os tipos reais persistidos são JSON simples ou que os tipos especiais sejam preservados com segurança.
+- **PENDENTE DE EVIDÊNCIA — regras de produção:** não foi obtida evidência administrativa somente de leitura das regras efetivas. `tests/firebase/firestore.rules` é exclusivo do ambiente de teste e não prova as permissões de produção.
+
+### Comandos e códigos de saída observados
+
+| Comando/consulta | Resultado |
+| --- | --- |
+| `node --version` | `v22.16.0`, código 0 |
+| `npm --version` | `10.9.2`, código 0 |
+| `git --version` | `git version 2.47.3`, código 0 |
+| `git clone --branch audit/protecao-dados-2026-10 --single-branch https://github.com/falcaoguitarcrt-blip/FluxoSaraeFelipe.git /tmp/FluxoSaraeFelipe` | Falhou, código 128: falha de resolução DNS para `github.com` |
+| Consulta de workflows associada ao HEAD via conector | Lista vazia; consulta limitada a eventos de pull request, portanto inconclusiva para push |
+| Status combinado do HEAD | Lista vazia; não constitui prova de aprovação |
+
+### Decisão da Fase 6.3
+
+**BLOQUEADA / PENDENTE DE EVIDÊNCIA.** A branch e a referência-base foram confirmadas. O ambiente atual não permite obter os logs do workflow de push nem clonar o repositório para executar a suíte local. Testes unitários, integração e build permanecem não executados/sem evidência nesta sessão.
+
+Próximos requisitos para desbloqueio:
+1. Consultar o endpoint completo de execuções de GitHub Actions para o repositório, filtrando pela branch `audit/protecao-dados-2026-10` e evento `push`, e inspecionar jobs/logs.
+2. Se não houver execução, diagnosticar permissões/configuração do Actions e gerar uma nova execução por um push de auditoria controlado, sem tocar na `main` nem fazer deploy.
+3. Obter execução bem-sucedida de instalação, testes unitários, emulator + integração e build; corrigir falhas observadas sem enfraquecer as verificações.
+4. Acrescentar/validar o cenário de leitura negada e determinar o comportamento de timeout/reconexão em ambiente sintético.
+5. Obter acesso administrativo somente de leitura às regras efetivas de produção, sem modificá-las.
+
+### Integridade e escopo
+
+- Nenhuma alteração, merge ou publicação na `main`.
+- Nenhum deploy.
+- Nenhuma escrita, exclusão, migração ou restauração no Firebase de produção.
+- Nenhum dado financeiro real usado em testes.
+- Nenhuma restauração histórica ou funcionalidade nova iniciada.
