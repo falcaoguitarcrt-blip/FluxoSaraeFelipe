@@ -1,51 +1,40 @@
 import assert from "node:assert/strict";
+import { hasMeaningfulUserData, clonePersistedData } from "../src/dataProtection.js";
 
-function hasMeaningfulUserData(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const dataArrays = [
-    "transactions", "bills", "cards", "cardPurchases", "investments", "goals",
-    "netWorthHistory", "accounts", "financialInstitutions", "cardBrands", "investmentInstitutions"
-  ];
-  if (dataArrays.some((key) => Array.isArray(value[key]) && value[key].length > 0)) return true;
-  const standardIds = /^(income|expense|invest|goal)_/;
-  for (const key of ["incomeCategoryCatalog", "expenseCategoryCatalog", "investmentCategoryCatalog", "goalCategoryCatalog"]) {
-    const rows = Array.isArray(value[key]) ? value[key] : [];
-    if (rows.some((row) => row && typeof row === "object" &&
-      (row.profileKey != null || row.active === false || !standardIds.test(String(row.id || "")))) return true;
-  }
-  const defaults = {
-    incomeCategories: ["Salário", "Freelance", "Rendimentos", "Reembolso", "Outros"],
-    expenseCategories: ["Moradia", "Alimentação", "Transporte", "Saúde", "Educação", "Lazer", "Assinaturas", "Compras", "Cuidado pessoal", "Pets", "Outros"],
-    investmentCategories: ["Renda fixa", "Renda variável", "Fundos", "Cripto", "Previdência", "Outros"],
-    goalCategories: ["Reserva de emergência", "Viagem", "Compra grande", "Educação", "Presente", "Outros"],
-    banks: ["Nubank", "Itaú", "Bradesco", "Caixa", "Banco do Brasil", "Inter", "Carteira"]
-  };
-  for (const [key, allowed] of Object.entries(defaults)) {
-    if ((Array.isArray(value[key]) ? value[key] : []).some((item) => !allowed.includes(item))) return true;
-  }
-  if (Object.values(value.initialBalances || {}).some((amount) => Number(amount) !== 0)) return true;
-  if (value.budgetLimits && Object.keys(value.budgetLimits).length) return true;
-  if (value.paidStatements && Object.keys(value.paidStatements).length) return true;
-  const known = new Set([
-    "transactions", "bills", "cards", "cardPurchases", "investments", "goals", "netWorthHistory",
-    "accounts", "profiles", "banks", "financialInstitutions", "cardBrands", "investmentInstitutions",
-    "incomeCategories", "expenseCategories", "investmentCategories", "goalCategories",
-    "incomeCategoryCatalog", "expenseCategoryCatalog", "investmentCategoryCatalog", "goalCategoryCatalog",
-    "budgetLimits", "paidStatements", "initialBalances", "lastAutoBackup"
-  ]);
-  return Object.entries(value).some(([key, item]) => !known.has(key) && item != null && item !== "" &&
-    item !== 0 && item !== false && !(Array.isArray(item) && item.length === 0) &&
-    !(typeof item === "object" && !Array.isArray(item) && Object.keys(item).length === 0));
-}
+const empty = {
+  transactions: [], bills: [], cards: [], cardPurchases: [], investments: [], goals: [], netWorthHistory: [],
+  accounts: [{ id: "account_wallet_p1" }, { id: "account_wallet_p2" }, { id: "account_wallet_p3" }],
+  profiles: [{ key: "p1", name: "Felipe" }, { key: "p2", name: "Sara" }, { key: "p3", name: "Outros" }],
+  initialBalances: { p1: 0, p2: 0, p3: 0 },
+  financialInstitutions: [{ id: "fi_nubank" }, { id: "fi_itau" }, { id: "fi_bradesco" }, { id: "fi_caixa" }, { id: "fi_bb" }, { id: "fi_inter" }],
+  cardBrands: [{ id: "brand_visa" }, { id: "brand_mastercard" }, { id: "brand_elo" }, { id: "brand_amex" }, { id: "brand_hipercard" }],
+  investmentInstitutions: [{ id: "invinst_xp" }, { id: "invinst_rico" }, { id: "invinst_btg" }, { id: "invinst_inter" }],
+  incomeCategories: ["Salário", "Freelance", "Rendimentos", "Reembolso", "Outros"],
+  expenseCategories: ["Moradia", "Alimentação", "Transporte", "Saúde", "Educação", "Lazer", "Assinaturas", "Compras", "Cuidado pessoal", "Pets", "Outros"],
+  investmentCategories: ["Renda fixa", "Renda variável", "Fundos", "Cripto", "Previdência", "Outros"],
+  goalCategories: ["Reserva de emergência", "Viagem", "Compra grande", "Educação", "Presente", "Outros"],
+  banks: ["Nubank", "Itaú", "Bradesco", "Caixa", "Banco do Brasil", "Inter", "Carteira"],
+  incomeCategoryCatalog: [{ id: "income_salary", profileKey: null }, { id: "income_freelance", profileKey: null }],
+  expenseCategoryCatalog: [{ id: "expense_home", profileKey: null }, { id: "expense_food", profileKey: null }],
+  investmentCategoryCatalog: [{ id: "invest_fixed", profileKey: null }],
+  goalCategoryCatalog: [{ id: "goal_trip", profileKey: null }],
+  budgetLimits: {}, paidStatements: {}, lastAutoBackup: 0
+};
 
-const empty = { transactions: [], bills: [], cards: [], cardPurchases: [], investments: [], goals: [], netWorthHistory: [], accounts: [], initialBalances: { p1: 0, p2: 0, p3: 0 } };
-assert.equal(hasMeaningfulUserData(empty), false, "known empty state is empty");
-assert.equal(hasMeaningfulUserData({ ...empty, bills: [{ id: "bill-1", amount: 10 }] }), true, "bills count as meaningful data");
-assert.equal(hasMeaningfulUserData({ ...empty, accounts: [{ id: "acc-1" }] }), true, "accounts count as meaningful data");
-assert.equal(hasMeaningfulUserData({ ...empty, expenseCategoryCatalog: [{ id: "custom-1", name: "Custom", profileKey: "p1" }] }), true, "custom category counts as meaningful data");
-assert.equal(hasMeaningfulUserData({ ...empty, budgetLimits: { p1: { "2026-10": 900 } } }), true, "budget limits count as meaningful data");
-assert.equal(hasMeaningfulUserData({ ...empty, paidStatements: { statement1: true } }), true, "paid statements count as meaningful data");
-assert.equal(hasMeaningfulUserData({ ...empty, futureOpaqueField: { keep: true } }), true, "unknown non-empty fields count as meaningful data");
+assert.equal(hasMeaningfulUserData(empty), false, "seeded defaults must not count as user data");
+assert.equal(hasMeaningfulUserData({ ...empty, transactions: [{ id: "tx1", amount: 5 }] }), true, "transactions count as data");
+assert.equal(hasMeaningfulUserData({ ...empty, bills: [{ id: "bill1", amount: 5 }] }), true, "bills count as data");
+assert.equal(hasMeaningfulUserData({ ...empty, cards: [{ id: "card1" }] }), true, "cards count as data");
+assert.equal(hasMeaningfulUserData({ ...empty, accounts: [...empty.accounts, { id: "custom-account" }] }), true, "custom accounts count as data");
+assert.equal(hasMeaningfulUserData({ ...empty, expenseCategoryCatalog: [...empty.expenseCategoryCatalog, { id: "custom-cat", profileKey: "p1" }] }), true, "custom categories count as data");
+assert.equal(hasMeaningfulUserData({ ...empty, budgetLimits: { p1: { "2026-10": 900 } } }), true, "budget limits count as data");
+assert.equal(hasMeaningfulUserData({ ...empty, paidStatements: { paid1: true } }), true, "paid statements count as data");
+assert.equal(hasMeaningfulUserData({ ...empty, futureOpaqueField: { keep: true } }), true, "unknown populated fields count as data");
 assert.equal(hasMeaningfulUserData(null), false, "null is not data");
-assert.equal(hasMeaningfulUserData([]), false, "array root is rejected");
-console.log("8 tests passed: meaningful data detection, custom configuration, unknown fields, empty/null guards.");
+assert.equal(hasMeaningfulUserData([]), false, "array root is not a persisted object");
+const original = { transactions: [{ id: "tx", nested: { keep: true } }] };
+const copy = clonePersistedData(original);
+assert.deepEqual(copy, original, "clone preserves nested fields");
+copy.transactions[0].nested.keep = false;
+assert.equal(original.transactions[0].nested.keep, true, "clone does not mutate source object");
+console.log("12 tests passed: default detection, finance records, custom config, unknown fields, and deep cloning.");
