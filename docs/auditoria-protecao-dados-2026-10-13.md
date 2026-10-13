@@ -29,7 +29,7 @@ Commit-base: 7318e2497fc51f7b9bdfe97d3c3e8645791d8ddb
 - Criado tests/data-protection.test.mjs para testar a função de detecção e cópia usada pela própria aplicação.
 - Adicionado script npm test:data-protection.
 - Adicionado workflow GitHub Actions .github/workflows/data-protection.yml para executar os testes e o build em Node 20 na branch de auditoria.
-- Na revisão de 2026-10-13, os workflows dos commits 7880c55, 61d4237 e 4bfa2fb ainda estavam em execução; portanto, os resultados dessas alterações não foram declarados aprovados nesta revisão. Os testes de integração com Emulator e concorrência continuam inexistentes.
+- O workflow do commit 7880c55 terminou com sucesso: testes unitários e build aprovados em https://github.com/falcaoguitarcrt-blip/FluxoSaraeFelipe/actions/runs/38407121083. O workflow do commit 1d08dc9 também terminou com sucesso: testes unitários e build aprovados em https://github.com/falcaoguitarcrt-blip/FluxoSaraeFelipe/actions/runs/38407112635. O workflow do commit 4bfa2fb ainda estava em execução quando esta nota foi atualizada; esse commit contém mudança documental, e seu resultado final deve ser conferido no GitHub. Os testes de integração com Emulator e concorrência continuam inexistentes.
 
 ## Pendências
 
