@@ -113,7 +113,13 @@ function getInvestmentSummary(data, profileFilter = "all") {
 
 const LOCAL_GOOD_BACKUP_KEY = "fluxo-casal-last-good-v1";
 const LOCAL_PREVIOUS_BACKUP_KEY = "fluxo-casal-previous-good-v1";
-const PERSISTENCE_DATA_KEYS = ["transactions", "cards", "cardPurchases", "investments", "goals", "netWorthHistory"];
+const PERSISTENCE_DATA_KEYS = [
+  "transactions", "bills", "cards", "cardPurchases", "investments", "goals", "netWorthHistory",
+  "accounts", "profiles", "banks", "financialInstitutions", "cardBrands", "investmentInstitutions",
+  "incomeCategories", "expenseCategories", "investmentCategories", "goalCategories",
+  "incomeCategoryCatalog", "expenseCategoryCatalog", "investmentCategoryCatalog", "goalCategoryCatalog",
+  "budgetLimits", "paidStatements", "initialBalances"
+];
 
 function clonePersistedData(value) {
   try {
@@ -124,9 +130,34 @@ function clonePersistedData(value) {
 }
 
 function hasMeaningfulUserData(value) {
-  if (!value || typeof value !== "object") return false;
-  if (PERSISTENCE_DATA_KEYS.some((key) => Array.isArray(value[key]) && value[key].length > 0)) return true;
-  return Object.values(value.initialBalances || {}).some((amount) => Number(amount) !== 0);
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const arrays = ["transactions", "bills", "cards", "cardPurchases", "investments", "goals", "netWorthHistory",
+    "accounts", "financialInstitutions", "cardBrands", "investmentInstitutions"];
+  if (arrays.some((key) => Array.isArray(value[key]) && value[key].length > 0)) return true;
+
+  const standardIds = /^(income|expense|invest|goal)_/;
+  for (const key of ["incomeCategoryCatalog", "expenseCategoryCatalog", "investmentCategoryCatalog", "goalCategoryCatalog"]) {
+    const rows = Array.isArray(value[key]) ? value[key] : [];
+    if (rows.some((row) => row && typeof row === "object" &&
+      (row.profileKey != null || row.active === false || !standardIds.test(String(row.id || "")))) return true;
+  }
+  const defaults = {
+    incomeCategories: ["Salário", "Freelance", "Rendimentos", "Reembolso", "Outros"],
+    expenseCategories: ["Moradia", "Alimentação", "Transporte", "Saúde", "Educação", "Lazer", "Assinaturas", "Compras", "Cuidado pessoal", "Pets", "Outros"],
+    investmentCategories: ["Renda fixa", "Renda variável", "Fundos", "Cripto", "Previdência", "Outros"],
+    goalCategories: ["Reserva de emergência", "Viagem", "Compra grande", "Educação", "Presente", "Outros"],
+    banks: ["Nubank", "Itaú", "Bradesco", "Caixa", "Banco do Brasil", "Inter", "Carteira"]
+  };
+  for (const [key, allowed] of Object.entries(defaults)) {
+    if ((Array.isArray(value[key]) ? value[key] : []).some((item) => !allowed.includes(item))) return true;
+  }
+  if (Object.values(value.initialBalances || {}).some((amount) => Number(amount) !== 0)) return true;
+  if (value.budgetLimits && Object.keys(value.budgetLimits).length) return true;
+  if (value.paidStatements && Object.keys(value.paidStatements).length) return true;
+  const known = new Set([...PERSISTENCE_DATA_KEYS, "lastAutoBackup"]);
+  return Object.entries(value).some(([key, item]) => !known.has(key) && item != null && item !== "" && item !== 0 && item !== false &&
+    !(Array.isArray(item) && item.length === 0) &&
+    !(typeof item === "object" && !Array.isArray(item) && Object.keys(item).length === 0));
 }
 
 function readLocalBackup(key) {
@@ -434,16 +465,16 @@ export default function App() {
 
         if (!hasMeaningfulUserData(hydratedData)) {
           try {
-            const cloudBackup = await getDoc(backupRef);
-            if (cloudBackup.exists()) {
-              const candidate = migrateData(cloudBackup.data());
+            const backupSnapshot = await getDoc(backupRef);
+            if (backupSnapshot.exists()) {
+              const candidate = migrateData(backupSnapshot.data());
               if (hasMeaningfulUserData(candidate)) {
                 hydratedData = candidate;
                 recoveryCandidateFound = true;
               }
             }
-          } catch (e) {
-            console.warn("Não foi possível consultar o backup da nuvem:", e);
+          } catch (error) {
+            console.warn("Não foi possível consultar o backup da nuvem:", error);
           }
         }
 
@@ -451,9 +482,9 @@ export default function App() {
           for (const legacyAppId of LEGACY_APP_IDS) {
             try {
               const legacyRef = doc(db, "artifacts", legacyAppId, "public", "data", "finances", "shared_state");
-              const legacySnap = await getDoc(legacyRef);
-              if (legacySnap.exists()) {
-                const candidate = migrateData(legacySnap.data());
+              const legacySnapshot = await getDoc(legacyRef);
+              if (legacySnapshot.exists()) {
+                const candidate = migrateData(legacySnapshot.data());
                 if (hasMeaningfulUserData(candidate)) {
                   hydratedData = candidate;
                   recoveryCandidateFound = true;
@@ -462,9 +493,9 @@ export default function App() {
               }
               if (!hasMeaningfulUserData(hydratedData)) {
                 const legacyBackupRef = doc(db, "artifacts", legacyAppId, "public", "data", "finances", "shared_state_backup_weekly");
-                const legacyBackupSnap = await getDoc(legacyBackupRef);
-                if (legacyBackupSnap.exists()) {
-                  const candidate = migrateData(legacyBackupSnap.data());
+                const legacyBackupSnapshot = await getDoc(legacyBackupRef);
+                if (legacyBackupSnapshot.exists()) {
+                  const candidate = migrateData(legacyBackupSnapshot.data());
                   if (hasMeaningfulUserData(candidate)) {
                     hydratedData = candidate;
                     recoveryCandidateFound = true;
@@ -472,29 +503,29 @@ export default function App() {
                   }
                 }
               }
-            } catch (e) {
-              console.warn("Não foi possível consultar a origem legada:", legacyAppId, e);
+            } catch (error) {
+              console.warn("Não foi possível consultar a origem legada:", legacyAppId, error);
             }
           }
         }
 
         if (!hasMeaningfulUserData(hydratedData)) {
-          const localBackup = readLocalBackup(LOCAL_PREVIOUS_BACKUP_KEY) || readLocalBackup(LOCAL_GOOD_BACKUP_KEY);
-          if (localBackup) {
-            hydratedData = migrateData(localBackup);
+          const local = readLocalBackup(LOCAL_PREVIOUS_BACKUP_KEY) || readLocalBackup(LOCAL_GOOD_BACKUP_KEY);
+          if (local) {
+            hydratedData = migrateData(local);
             recoveryCandidateFound = true;
           }
         }
       } else {
-        // Missing is ambiguous, so never create DEFAULT_STATE in production automatically.
-        const localBackup = readLocalBackup(LOCAL_PREVIOUS_BACKUP_KEY) || readLocalBackup(LOCAL_GOOD_BACKUP_KEY);
-        if (!localBackup) {
+        // Documento ausente não prova que o banco seja novo. Nunca criar DEFAULT_STATE automaticamente.
+        const local = readLocalBackup(LOCAL_PREVIOUS_BACKUP_KEY) || readLocalBackup(LOCAL_GOOD_BACKUP_KEY);
+        if (!local) {
           setReady(false);
           setSyncStatus("error");
           showToast("Não foi possível confirmar os dados na nuvem. Nenhum dado foi criado ou sobrescrito.");
           return;
         }
-        hydratedData = migrateData(localBackup);
+        hydratedData = migrateData(local);
         recoveryCandidateFound = true;
       }
 
@@ -504,7 +535,6 @@ export default function App() {
         setSyncStatus("error");
         return;
       }
-
       lastPersistedDataRef.current = clonePersistedData(hydratedData);
       writeLocalBackup(LOCAL_GOOD_BACKUP_KEY, hydratedData);
       setData(hydratedData);
@@ -520,20 +550,19 @@ export default function App() {
     };
 
     const unsubscribe = onSnapshot(docRef, (snapshot) => {
-      hydrate(snapshot).catch((err) => {
-        console.error("Hydration error", err);
+      hydrate(snapshot).catch((error) => {
+        console.error("Hydration error", error);
         hasHydratedFromServer.current = false;
         setSyncStatus("error");
         setReady(false);
       });
-    }, (err) => {
-      console.error("Sync error", err);
+    }, (error) => {
+      console.error("Sync error", error);
       hasHydratedFromServer.current = false;
       setSyncStatus("error");
       setReady(false);
       showToast("Falha ao ler a nuvem. Edição e salvamento foram bloqueados para proteger os dados.");
     });
-
     return () => {
       active = false;
       unsubscribe();
