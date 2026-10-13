@@ -85,6 +85,7 @@ Commit-base: 7318e2497fc51f7b9bdfe97d3c3e8645791d8ddb
 - `97dce6790c9ba9718a00499e0bd3eaaab76b16fa` — integração da função compartilhada em `src/App.jsx`.
 - `46588a4ab2501e001fcd4b3a2b86aa2ab145e289` — scripts e dependências de testes.
 - `d732ddf5bfa373ff7a0db77ade2670efc18e6c83` — workflow de CI com emulador.
+- `6f2a8eb618cbd26b5de0ef5f1e767e1e56b3a2dd` — remoção de imports obsoletos após a extração da transação.
 
 ### Situação da Fase 6.1
 
