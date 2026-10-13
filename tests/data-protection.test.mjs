@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { hasMeaningfulUserData, clonePersistedData, createHistoryRecord, isValidHistoryRecord } from "../src/dataProtection.js";
+import { hasMeaningfulUserData, clonePersistedData, createHistoryRecord, isValidHistoryRecord, stableSnapshotString, snapshotsEqual } from "../src/dataProtection.js";
 
 const empty = {
   transactions: [], bills: [], cards: [], cardPurchases: [], investments: [], goals: [], netWorthHistory: [],
@@ -54,4 +54,9 @@ assert.equal(isValidHistoryRecord({ ...history, data: [] }), false, "array snaps
 assert.equal(isValidHistoryRecord({ ...history, versionId: "" }), false, "missing version ID is invalid");
 assert.throws(() => createHistoryRecord({ versionId: "", createdAt: "now", data: historySource }), TypeError);
 assert.throws(() => createHistoryRecord({ versionId: "fake", createdAt: "now", data: [] }), TypeError);
-console.log("20 assertions passed: defaults, finance data, unknown fields, cloning, and history-record validation.");
+assert.equal(snapshotsEqual({ a: 1, nested: { x: 2, y: 3 } }, { nested: { y: 3, x: 2 }, a: 1 }), true, "snapshot comparison ignores object-key order");
+assert.equal(snapshotsEqual({ items: [1, 2] }, { items: [2, 1] }), false, "snapshot comparison preserves array order");
+assert.equal(snapshotsEqual({ futureField: { retained: true } }, { futureField: { retained: false } }), false, "snapshot comparison detects unknown-field differences");
+assert.throws(() => stableSnapshotString({ date: new Date("2026-10-13T00:00:00Z") }), TypeError, "non-plain values fail closed");
+assert.throws(() => stableSnapshotString({ value: Number.NaN }), TypeError, "non-finite numbers fail closed");
+console.log("25 assertions passed: defaults, finance data, unknown fields, cloning, history validation, and stable snapshots.");
