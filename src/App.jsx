@@ -111,7 +111,8 @@ function getInvestmentSummary(data, profileFilter = "all") {
   return { items, invested, market, gain, gainPct, count: items.length };
 }
 
-import { clonePersistedData, hasMeaningfulUserData, createHistoryRecord, snapshotsEqual } from "./dataProtection";
+import { clonePersistedData, hasMeaningfulUserData } from "./dataProtection";
+import { persistSnapshotAtomically } from "./firestorePersistence";
 
 const LOCAL_GOOD_BACKUP_KEY = "fluxo-casal-last-good-v1";
 const LOCAL_PREVIOUS_BACKUP_KEY = "fluxo-casal-previous-good-v1";
@@ -550,30 +551,14 @@ export default function App() {
     saveTimer.current = setTimeout(async () => {
       try {
         const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'finances', 'shared_state');
-        const versionsRef = collection(db, 'artifacts', appId, 'public', 'data', 'finances', 'shared_state', 'versions');
-        const versionRef = doc(versionsRef);
         const rawBaseline = lastRawServerDataRef.current;
 
-        // A leitura, a versão histórica e a atualização principal são atômicas.
-        // Se as regras atuais não autorizarem a subcoleção, a transação falha sem atualizar shared_state.
-        await runTransaction(db, async (transaction) => {
-          const latestSnapshot = await transaction.get(docRef);
-          if (!latestSnapshot.exists()) {
-            throw new Error("Documento principal ausente durante salvamento; gravação bloqueada.");
-          }
-
-          const latestServerData = latestSnapshot.data();
-          if (!rawBaseline || !snapshotsEqual(latestServerData, rawBaseline)) {
-            throw new Error("O estado da nuvem mudou desde a última leitura. Recarregue para evitar sobrescrita concorrente.");
-          }
-
-          transaction.set(versionRef, createHistoryRecord({
-            versionId: versionRef.id,
-            createdAt: serverTimestamp(),
-            source: "before-client-save",
-            data: latestServerData
-          }));
-          transaction.set(docRef, pendingData);
+        // A transação atômica está isolada em um módulo compartilhado com os testes de integração.
+        await persistSnapshotAtomically({
+          db,
+          docRef,
+          baseline: rawBaseline,
+          pendingData
         });
 
         lastPersistedDataRef.current = clonePersistedData(pendingData);
