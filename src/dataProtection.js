@@ -113,3 +113,35 @@ export function isValidHistoryRecord(record) {
     !Array.isArray(record.data)
   );
 }
+
+
+/**
+ * Compares plain persisted snapshots independent of object-key ordering.
+ * Arrays remain ordered because transaction and statement order may be meaningful.
+ * This intentionally supports Firestore's JSON-compatible persisted state only;
+ * non-plain Firestore values must be normalized explicitly before calling it.
+ */
+export function stableSnapshotString(value) {
+  const normalize = (item) => {
+    if (Array.isArray(item)) return item.map(normalize);
+    if (item && typeof item === "object") {
+      const proto = Object.getPrototypeOf(item);
+      if (proto !== Object.prototype && proto !== null) {
+        throw new TypeError("Snapshot contains a non-plain object; comparison is unsafe.");
+      }
+      return Object.fromEntries(Object.keys(item).sort().map((key) => [key, normalize(item[key])]));
+    }
+    if (typeof item === "number" && !Number.isFinite(item)) {
+      throw new TypeError("Snapshot contains a non-finite number; comparison is unsafe.");
+    }
+    if (typeof item === "undefined" || typeof item === "function" || typeof item === "symbol" || typeof item === "bigint") {
+      throw new TypeError("Snapshot contains an unsupported value; comparison is unsafe.");
+    }
+    return item;
+  };
+  return JSON.stringify(normalize(value));
+}
+
+export function snapshotsEqual(left, right) {
+  return stableSnapshotString(left) === stableSnapshotString(right);
+}
