@@ -364,6 +364,7 @@ export default function App() {
   const saveTimer = useRef(null);
   const hasHydratedFromServer = useRef(false);
   const lastPersistedDataRef = useRef(null);
+  const lastRawServerDataRef = useRef(null);
 
   useEffect(() => {
     if (tab === "budgets" || tab === "psalms") setTab("dashboard");
@@ -417,7 +418,9 @@ export default function App() {
       let recoveryCandidateFound = false;
 
       if (snapshot.exists()) {
-        hydratedData = migrateData(snapshot.data());
+        const rawServerData = snapshot.data();
+        lastRawServerDataRef.current = clonePersistedData(rawServerData);
+        hydratedData = migrateData(rawServerData);
 
         if (!hasMeaningfulUserData(hydratedData)) {
           try {
@@ -551,11 +554,11 @@ export default function App() {
 
         const latestSnapshot = await getDoc(docRef);
         const latestServerData = latestSnapshot.exists() ? latestSnapshot.data() : null;
-        const baseline = lastPersistedDataRef.current;
+        const rawBaseline = lastRawServerDataRef.current;
         if (!latestSnapshot.exists()) {
           throw new Error("Documento principal ausente durante salvamento; gravação bloqueada.");
         }
-        if (latestServerData && baseline && JSON.stringify(latestServerData) !== JSON.stringify(baseline)) {
+        if (latestServerData && rawBaseline && JSON.stringify(latestServerData) !== JSON.stringify(rawBaseline)) {
           throw new Error("O estado da nuvem mudou desde a última leitura. Recarregue para evitar sobrescrita concorrente.");
         }
 
@@ -566,6 +569,7 @@ export default function App() {
 
         await setDoc(docRef, pendingData);
         lastPersistedDataRef.current = clonePersistedData(pendingData);
+        lastRawServerDataRef.current = clonePersistedData(pendingData);
         writeLocalBackup(LOCAL_GOOD_BACKUP_KEY, pendingData);
         setSyncStatus("synced");
       } catch(e) {
