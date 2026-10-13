@@ -419,66 +419,55 @@ export default function App() {
     if (!user || !db) return;
     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'finances', 'shared_state');
     const backupRef = doc(db, 'artifacts', appId, 'public', 'data', 'finances', 'shared_state_backup_weekly');
+    let hydrationSequence = 0;
+    let active = true;
 
     const hydrate = async (snapshot) => {
+      const sequence = ++hydrationSequence;
       hasHydratedFromServer.current = false;
       skipNextSave.current = true;
-
       let hydratedData;
+      let recoveryCandidateFound = false;
 
       if (snapshot.exists()) {
-        const serverData = snapshot.data();
-        const profiles = Array.isArray(serverData.profiles) && serverData.profiles.length
-          ? (serverData.profiles.some((p) => p.key === "p3")
-            ? serverData.profiles
-            : [...serverData.profiles, { key: "p3", name: "Outros" }])
-          : DEFAULT_STATE.profiles;
-        const initialBalances = { ...DEFAULT_STATE.initialBalances, ...(serverData.initialBalances || {}) };
-        hydratedData = migrateData({ ...serverData, profiles, initialBalances });
-
-        // Proteção de recuperação: se a nuvem estiver vazia, procurar a última cópia segura.
-        let recoveredFromLegacyCloud = false;
+        hydratedData = migrateData(snapshot.data());
 
         if (!hasMeaningfulUserData(hydratedData)) {
           try {
             const cloudBackup = await getDoc(backupRef);
             if (cloudBackup.exists()) {
               const candidate = migrateData(cloudBackup.data());
-              if (hasMeaningfulUserData(candidate)) hydratedData = candidate;
+              if (hasMeaningfulUserData(candidate)) {
+                hydratedData = candidate;
+                recoveryCandidateFound = true;
+              }
             }
           } catch (e) {
             console.warn("Não foi possível consultar o backup da nuvem:", e);
           }
         }
 
-        // Compatibilidade com as versões anteriores do aplicativo.
-        // O projeto usava IDs de documento diferentes no mesmo Firebase.
-        // Nunca substitui dados válidos da produção. Só consulta os legados quando a produção está vazia.
         if (!hasMeaningfulUserData(hydratedData)) {
           for (const legacyAppId of LEGACY_APP_IDS) {
             try {
               const legacyRef = doc(db, "artifacts", legacyAppId, "public", "data", "finances", "shared_state");
               const legacySnap = await getDoc(legacyRef);
-
               if (legacySnap.exists()) {
                 const candidate = migrateData(legacySnap.data());
                 if (hasMeaningfulUserData(candidate)) {
                   hydratedData = candidate;
-                  recoveredFromLegacyCloud = true;
-                  console.info("Dados recuperados do Firestore legado:", legacyAppId);
+                  recoveryCandidateFound = true;
                   break;
                 }
               }
-
               if (!hasMeaningfulUserData(hydratedData)) {
                 const legacyBackupRef = doc(db, "artifacts", legacyAppId, "public", "data", "finances", "shared_state_backup_weekly");
                 const legacyBackupSnap = await getDoc(legacyBackupRef);
                 if (legacyBackupSnap.exists()) {
-                  const backupCandidate = migrateData(legacyBackupSnap.data());
-                  if (hasMeaningfulUserData(backupCandidate)) {
-                    hydratedData = backupCandidate;
-                    recoveredFromLegacyCloud = true;
-                    console.info("Dados recuperados do backup Firestore legado:", legacyAppId);
+                  const candidate = migrateData(legacyBackupSnap.data());
+                  if (hasMeaningfulUserData(candidate)) {
+                    hydratedData = candidate;
+                    recoveryCandidateFound = true;
                     break;
                   }
                 }
@@ -491,47 +480,64 @@ export default function App() {
 
         if (!hasMeaningfulUserData(hydratedData)) {
           const localBackup = readLocalBackup(LOCAL_PREVIOUS_BACKUP_KEY) || readLocalBackup(LOCAL_GOOD_BACKUP_KEY);
-          if (localBackup) hydratedData = migrateData(localBackup);
-        }
-
-        // Só recupera a nuvem automaticamente quando existe uma cópia realmente útil.
-        // Dados legados/localizados só são promovidos para a produção quando a produção estava vazia.
-        if (hasMeaningfulUserData(hydratedData) && (!hasMeaningfulUserData(migrateData({ ...serverData, profiles, initialBalances })) || recoveredFromLegacyCloud)) {
-          await setDoc(docRef, hydratedData);
+          if (localBackup) {
+            hydratedData = migrateData(localBackup);
+            recoveryCandidateFound = true;
+          }
         }
       } else {
+        // Missing is ambiguous, so never create DEFAULT_STATE in production automatically.
         const localBackup = readLocalBackup(LOCAL_PREVIOUS_BACKUP_KEY) || readLocalBackup(LOCAL_GOOD_BACKUP_KEY);
-        if (localBackup) {
-          hydratedData = migrateData(localBackup);
-          await setDoc(docRef, hydratedData);
-        } else {
-          hydratedData = migrateData(DEFAULT_STATE);
-          // Documento novo: somente aqui o estado padrão pode ser criado.
-          await setDoc(docRef, hydratedData);
+        if (!localBackup) {
+          setReady(false);
+          setSyncStatus("error");
+          showToast("Não foi possível confirmar os dados na nuvem. Nenhum dado foi criado ou sobrescrito.");
+          return;
         }
+        hydratedData = migrateData(localBackup);
+        recoveryCandidateFound = true;
+      }
+
+      if (!active || sequence !== hydrationSequence) return;
+      if (!hydratedData || typeof hydratedData !== "object" || !Array.isArray(hydratedData.profiles)) {
+        setReady(false);
+        setSyncStatus("error");
+        return;
       }
 
       lastPersistedDataRef.current = clonePersistedData(hydratedData);
       writeLocalBackup(LOCAL_GOOD_BACKUP_KEY, hydratedData);
       setData(hydratedData);
       setReady(true);
-      hasHydratedFromServer.current = true;
-      setSyncStatus("synced");
+      if (recoveryCandidateFound) {
+        hasHydratedFromServer.current = false;
+        setSyncStatus("error");
+        showToast("Dados de recuperação encontrados. A nuvem não foi alterada automaticamente.");
+      } else {
+        hasHydratedFromServer.current = true;
+        setSyncStatus("synced");
+      }
     };
 
     const unsubscribe = onSnapshot(docRef, (snapshot) => {
       hydrate(snapshot).catch((err) => {
         console.error("Hydration error", err);
+        hasHydratedFromServer.current = false;
         setSyncStatus("error");
-        setReady(true);
+        setReady(false);
       });
     }, (err) => {
       console.error("Sync error", err);
+      hasHydratedFromServer.current = false;
       setSyncStatus("error");
-      setReady(true);
+      setReady(false);
+      showToast("Falha ao ler a nuvem. Edição e salvamento foram bloqueados para proteger os dados.");
     });
 
-    return () => unsubscribe();
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, [user]);
 
   useEffect(() => {
@@ -558,32 +564,31 @@ export default function App() {
         const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'finances', 'shared_state');
         const backupRef = doc(db, 'artifacts', appId, 'public', 'data', 'finances', 'shared_state_backup_weekly');
 
+        const latestSnapshot = await getDoc(docRef);
+        const latestServerData = latestSnapshot.exists() ? latestSnapshot.data() : null;
+        const baseline = lastPersistedDataRef.current;
+        if (!latestSnapshot.exists()) {
+          throw new Error("Documento principal ausente durante salvamento; gravação bloqueada.");
+        }
+        if (latestServerData && baseline && JSON.stringify(latestServerData) !== JSON.stringify(baseline)) {
+          throw new Error("O estado da nuvem mudou desde a última leitura. Recarregue para evitar sobrescrita concorrente.");
+        }
+
         if (previousData && hasMeaningfulUserData(previousData)) {
           writeLocalBackup(LOCAL_PREVIOUS_BACKUP_KEY, previousData);
-          try {
-            // Backup fica uma versão atrás do estado principal, permitindo recuperação.
-            await setDoc(backupRef, clonePersistedData(previousData));
-          } catch (backupError) {
-            console.warn("Backup da nuvem falhou; salvamento principal continuará:", backupError);
-          }
+          await setDoc(backupRef, clonePersistedData(previousData));
         }
 
         await setDoc(docRef, pendingData);
         lastPersistedDataRef.current = clonePersistedData(pendingData);
         writeLocalBackup(LOCAL_GOOD_BACKUP_KEY, pendingData);
-
-        // Mantém também a cópia em nuvem atualizada após cada salvamento bem-sucedido.
-        // Assim, mesmo o primeiro lançamento/ativo cadastrado já possui uma segunda cópia recuperável.
-        try {
-          await setDoc(backupRef, clonePersistedData(pendingData));
-        } catch (backupError) {
-          console.warn("Não foi possível atualizar o backup atual da nuvem:", backupError);
-        }
-
         setSyncStatus("synced");
       } catch(e) {
         console.error("Save err", e);
         setSyncStatus("error");
+        showToast(e?.message?.includes("sobrescrita concorrente") || e?.message?.includes("Documento principal ausente")
+          ? "Salvamento bloqueado para evitar sobrescrever dados. Recarregue e confira a nuvem."
+          : "Não foi possível confirmar o salvamento. Suas alterações permanecem na tela; verifique a conexão antes de tentar novamente.");
       }
     }, 1000);
     return () => clearTimeout(saveTimer.current);
