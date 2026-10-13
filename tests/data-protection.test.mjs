@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { hasMeaningfulUserData, clonePersistedData } from "../src/dataProtection.js";
+import { hasMeaningfulUserData, clonePersistedData, createHistoryRecord, isValidHistoryRecord } from "../src/dataProtection.js";
 
 const empty = {
   transactions: [], bills: [], cards: [], cardPurchases: [], investments: [], goals: [], netWorthHistory: [],
@@ -37,4 +37,21 @@ const copy = clonePersistedData(original);
 assert.deepEqual(copy, original, "clone preserves nested fields");
 copy.transactions[0].nested.keep = false;
 assert.equal(original.transactions[0].nested.keep, true, "clone does not mutate source object");
-console.log("13 assertions passed: default detection, finance records, custom config, unknown fields, and deep cloning.");
+const historySource = {
+  transactions: [{ id: "tx-history", amount: 42, customFutureField: { keep: "yes" } }],
+  unknownRootField: { preserve: true }
+};
+const history = createHistoryRecord({
+  versionId: "fake-version-001",
+  createdAt: "2026-10-13T12:00:00.000Z",
+  source: "test-fixture",
+  data: historySource
+});
+assert.equal(isValidHistoryRecord(history), true, "well-formed history record is valid");
+assert.deepEqual(history.data, historySource, "history record preserves unknown root and nested fields");
+assert.notEqual(history.data, historySource, "history record clones its source snapshot");
+assert.equal(isValidHistoryRecord({ ...history, data: [] }), false, "array snapshot is invalid");
+assert.equal(isValidHistoryRecord({ ...history, versionId: "" }), false, "missing version ID is invalid");
+assert.throws(() => createHistoryRecord({ versionId: "", createdAt: "now", data: historySource }), TypeError);
+assert.throws(() => createHistoryRecord({ versionId: "fake", createdAt: "now", data: [] }), TypeError);
+console.log("20 assertions passed: defaults, finance data, unknown fields, cloning, and history-record validation.");
