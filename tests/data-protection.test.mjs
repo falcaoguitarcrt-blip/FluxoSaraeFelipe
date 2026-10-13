@@ -37,4 +37,4 @@ const copy = clonePersistedData(original);
 assert.deepEqual(copy, original, "clone preserves nested fields");
 copy.transactions[0].nested.keep = false;
 assert.equal(original.transactions[0].nested.keep, true, "clone does not mutate source object");
-console.log("12 tests passed: default detection, finance records, custom config, unknown fields, and deep cloning.");
+console.log("13 assertions passed: default detection, finance records, custom config, unknown fields, and deep cloning.");
