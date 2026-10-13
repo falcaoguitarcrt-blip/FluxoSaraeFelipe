@@ -111,54 +111,10 @@ function getInvestmentSummary(data, profileFilter = "all") {
   return { items, invested, market, gain, gainPct, count: items.length };
 }
 
+import { clonePersistedData, hasMeaningfulUserData } from "./dataProtection";
+
 const LOCAL_GOOD_BACKUP_KEY = "fluxo-casal-last-good-v1";
 const LOCAL_PREVIOUS_BACKUP_KEY = "fluxo-casal-previous-good-v1";
-const PERSISTENCE_DATA_KEYS = [
-  "transactions", "bills", "cards", "cardPurchases", "investments", "goals", "netWorthHistory",
-  "accounts", "profiles", "banks", "financialInstitutions", "cardBrands", "investmentInstitutions",
-  "incomeCategories", "expenseCategories", "investmentCategories", "goalCategories",
-  "incomeCategoryCatalog", "expenseCategoryCatalog", "investmentCategoryCatalog", "goalCategoryCatalog",
-  "budgetLimits", "paidStatements", "initialBalances"
-];
-
-function clonePersistedData(value) {
-  try {
-    return JSON.parse(JSON.stringify(value));
-  } catch (e) {
-    return value;
-  }
-}
-
-function hasMeaningfulUserData(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const arrays = ["transactions", "bills", "cards", "cardPurchases", "investments", "goals", "netWorthHistory",
-    "accounts", "financialInstitutions", "cardBrands", "investmentInstitutions"];
-  if (arrays.some((key) => Array.isArray(value[key]) && value[key].length > 0)) return true;
-
-  const standardIds = /^(income|expense|invest|goal)_/;
-  for (const key of ["incomeCategoryCatalog", "expenseCategoryCatalog", "investmentCategoryCatalog", "goalCategoryCatalog"]) {
-    const rows = Array.isArray(value[key]) ? value[key] : [];
-    if (rows.some((row) => row && typeof row === "object" &&
-      (row.profileKey != null || row.active === false || !standardIds.test(String(row.id || "")))) return true;
-  }
-  const defaults = {
-    incomeCategories: ["Salário", "Freelance", "Rendimentos", "Reembolso", "Outros"],
-    expenseCategories: ["Moradia", "Alimentação", "Transporte", "Saúde", "Educação", "Lazer", "Assinaturas", "Compras", "Cuidado pessoal", "Pets", "Outros"],
-    investmentCategories: ["Renda fixa", "Renda variável", "Fundos", "Cripto", "Previdência", "Outros"],
-    goalCategories: ["Reserva de emergência", "Viagem", "Compra grande", "Educação", "Presente", "Outros"],
-    banks: ["Nubank", "Itaú", "Bradesco", "Caixa", "Banco do Brasil", "Inter", "Carteira"]
-  };
-  for (const [key, allowed] of Object.entries(defaults)) {
-    if ((Array.isArray(value[key]) ? value[key] : []).some((item) => !allowed.includes(item))) return true;
-  }
-  if (Object.values(value.initialBalances || {}).some((amount) => Number(amount) !== 0)) return true;
-  if (value.budgetLimits && Object.keys(value.budgetLimits).length) return true;
-  if (value.paidStatements && Object.keys(value.paidStatements).length) return true;
-  const known = new Set([...PERSISTENCE_DATA_KEYS, "lastAutoBackup"]);
-  return Object.entries(value).some(([key, item]) => !known.has(key) && item != null && item !== "" && item !== 0 && item !== false &&
-    !(Array.isArray(item) && item.length === 0) &&
-    !(typeof item === "object" && !Array.isArray(item) && Object.keys(item).length === 0));
-}
 
 function readLocalBackup(key) {
   try {
