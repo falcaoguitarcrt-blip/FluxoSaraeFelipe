@@ -8,9 +8,15 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GCLOUD_PROJECT: demo-fluxo-casal-test
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,7 +26,14 @@ jobs:
           node-version: 20
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-      - name: Run data-protection tests
+      - name: Run data-protection unit tests
         run: npm run test:data-protection
-      - name: Build
+      - name: Run Firestore Emulator integration tests
+        run: >-
+          npx firebase emulators:exec
+          --only firestore
+          --project demo-fluxo-casal-test
+          --config tests/firebase/firebase.json
+          "npm run test:integration"
+      - name: Build production bundle without deployment
         run: npm run build
