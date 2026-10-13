@@ -11,7 +11,7 @@ import { DEFAULT_STATE, migrateData, getProfileCatalog, getAccountsForProfile } 
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from "recharts";
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, collection, setDoc, onSnapshot, getDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
 
 const FONT_LINK_ID = "fluxo-casal-fonts";
 const STORAGE_KEY = "fluxo-casal-v4";
@@ -550,26 +550,36 @@ export default function App() {
     saveTimer.current = setTimeout(async () => {
       try {
         const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'finances', 'shared_state');
-        const backupRef = doc(db, 'artifacts', appId, 'public', 'data', 'finances', 'shared_state_backup_weekly');
-
-        const latestSnapshot = await getDoc(docRef);
-        const latestServerData = latestSnapshot.exists() ? latestSnapshot.data() : null;
+        const versionsRef = collection(db, 'artifacts', appId, 'public', 'data', 'finances', 'shared_state_versions');
+        const versionRef = doc(versionsRef);
         const rawBaseline = lastRawServerDataRef.current;
-        if (!latestSnapshot.exists()) {
-          throw new Error("Documento principal ausente durante salvamento; gravação bloqueada.");
-        }
-        if (latestServerData && rawBaseline && JSON.stringify(latestServerData) !== JSON.stringify(rawBaseline)) {
-          throw new Error("O estado da nuvem mudou desde a última leitura. Recarregue para evitar sobrescrita concorrente.");
-        }
 
-        if (previousData && hasMeaningfulUserData(previousData)) {
-          writeLocalBackup(LOCAL_PREVIOUS_BACKUP_KEY, previousData);
-          await setDoc(backupRef, clonePersistedData(previousData));
-        }
+        // A leitura, a versão histórica e a atualização principal são atômicas.
+        // Se as regras atuais não autorizarem a subcoleção, a transação falha sem atualizar shared_state.
+        await runTransaction(db, async (transaction) => {
+          const latestSnapshot = await transaction.get(docRef);
+          if (!latestSnapshot.exists()) {
+            throw new Error("Documento principal ausente durante salvamento; gravação bloqueada.");
+          }
 
-        await setDoc(docRef, pendingData);
+          const latestServerData = latestSnapshot.data();
+          if (!rawBaseline || JSON.stringify(latestServerData) !== JSON.stringify(rawBaseline)) {
+            throw new Error("O estado da nuvem mudou desde a última leitura. Recarregue para evitar sobrescrita concorrente.");
+          }
+
+          transaction.set(versionRef, {
+            versionId: versionRef.id,
+            createdAt: serverTimestamp(),
+            source: "before-client-save",
+            schemaVersion: 1,
+            data: clonePersistedData(latestServerData)
+          });
+          transaction.set(docRef, pendingData);
+        });
+
         lastPersistedDataRef.current = clonePersistedData(pendingData);
         lastRawServerDataRef.current = clonePersistedData(pendingData);
+        writeLocalBackup(LOCAL_PREVIOUS_BACKUP_KEY, previousData || lastPersistedDataRef.current);
         writeLocalBackup(LOCAL_GOOD_BACKUP_KEY, pendingData);
         setSyncStatus("synced");
       } catch(e) {
