@@ -550,7 +550,7 @@ export default function App() {
     saveTimer.current = setTimeout(async () => {
       try {
         const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'finances', 'shared_state');
-        const versionsRef = collection(db, 'artifacts', appId, 'public', 'data', 'finances', 'shared_state_versions');
+        const versionsRef = collection(db, 'artifacts', appId, 'public', 'data', 'finances', 'shared_state', 'versions');
         const versionRef = doc(versionsRef);
         const rawBaseline = lastRawServerDataRef.current;
 
