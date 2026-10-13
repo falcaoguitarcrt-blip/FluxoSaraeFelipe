@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:data-protection": "node tests/data-protection.test.mjs"
   },
   "dependencies": {
     "firebase": "^10.8.0",
