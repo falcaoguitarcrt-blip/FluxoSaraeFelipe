@@ -76,3 +76,40 @@ export function hasMeaningfulUserData(value) {
     item !== 0 && item !== false && !(Array.isArray(item) && item.length === 0) &&
     !(typeof item === "object" && !Array.isArray(item) && Object.keys(item).length === 0));
 }
+
+
+/**
+ * Builds a version envelope around a raw persisted snapshot without projecting
+ * it onto a known schema. Unknown fields remain inside the cloned data object.
+ */
+export function createHistoryRecord({ versionId, createdAt, source = "before-client-save", data }) {
+  if (typeof versionId !== "string" || !versionId.trim()) {
+    throw new TypeError("A history version requires a non-empty versionId.");
+  }
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new TypeError("A history version requires a persisted object snapshot.");
+  }
+  return {
+    versionId,
+    createdAt,
+    source,
+    schemaVersion: 1,
+    data: clonePersistedData(data)
+  };
+}
+
+export function isValidHistoryRecord(record) {
+  return Boolean(
+    record &&
+    typeof record === "object" &&
+    !Array.isArray(record) &&
+    typeof record.versionId === "string" &&
+    record.versionId.length > 0 &&
+    record.createdAt != null &&
+    Number.isInteger(record.schemaVersion) &&
+    record.schemaVersion >= 1 &&
+    record.data &&
+    typeof record.data === "object" &&
+    !Array.isArray(record.data)
+  );
+}
