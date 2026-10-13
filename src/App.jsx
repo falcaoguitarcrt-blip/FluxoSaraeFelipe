@@ -111,7 +111,7 @@ function getInvestmentSummary(data, profileFilter = "all") {
   return { items, invested, market, gain, gainPct, count: items.length };
 }
 
-import { clonePersistedData, hasMeaningfulUserData } from "./dataProtection";
+import { clonePersistedData, hasMeaningfulUserData, createHistoryRecord } from "./dataProtection";
 
 const LOCAL_GOOD_BACKUP_KEY = "fluxo-casal-last-good-v1";
 const LOCAL_PREVIOUS_BACKUP_KEY = "fluxo-casal-previous-good-v1";
@@ -567,13 +567,12 @@ export default function App() {
             throw new Error("O estado da nuvem mudou desde a última leitura. Recarregue para evitar sobrescrita concorrente.");
           }
 
-          transaction.set(versionRef, {
+          transaction.set(versionRef, createHistoryRecord({
             versionId: versionRef.id,
             createdAt: serverTimestamp(),
             source: "before-client-save",
-            schemaVersion: 1,
-            data: clonePersistedData(latestServerData)
-          });
+            data: latestServerData
+          }));
           transaction.set(docRef, pendingData);
         });
 
