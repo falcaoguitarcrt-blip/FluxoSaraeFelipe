@@ -90,3 +90,38 @@ Commit-base: 7318e2497fc51f7b9bdfe97d3c3e8645791d8ddb
 ### Situação da Fase 6.1
 
 **Ainda não concluída.** Os arquivos foram adicionados e conectados na branch de auditoria, mas a aprovação depende de executar e inspecionar o CI atualizado, corrigir eventuais falhas e confirmar o HEAD final. Os critérios de tipos especiais, conectividade e regras de produção continuam abertos.
+
+
+## Fase 6.2 — verificação de evidências e endurecimento do isolamento
+
+Data da verificação: 2026-10-13.
+
+### Estado observado
+
+- **APROVADO — comparação de referências:** a comparação de `main` com `audit/protecao-dados-2026-10` retornou 38 commits à frente e 0 atrás. A referência-base/merge-base retornada foi `7318e2497fc51f7b9bdfe97d3c3e8645791d8ddb`.
+- **PENDENTE DE EVIDÊNCIA — CI no HEAD:** a consulta ao status combinado do commit conhecido `45f68c082495565bef7b158e0eabc9e99756d738` retornou lista vazia de status; a consulta de execuções por commit também retornou lista vazia. O conector disponível filtra execuções por eventos de pull request, portanto isso não prova que um workflow disparado por push não exista. Não foi possível obter evidência observável de execução do workflow atualizado ou seus códigos de saída nesta verificação.
+- **PENDENTE DE EVIDÊNCIA — testes e build:** não foi possível executar os comandos de teste, iniciar o emulador nem executar o build no ambiente de trabalho disponível. Os testes existentes continuam sendo testes escritos, não testes comprovadamente executados nesta fase.
+- **PENDENTE DE EVIDÊNCIA — regras de produção:** os arquivos de regras presentes no repositório são configuração de teste; não demonstram as regras efetivas do projeto Firebase de produção. Nenhuma regra de produção foi lida ou alterada.
+- **PENDENTE DE EVIDÊNCIA — comportamento offline/reconexão:** não há resultado observado de simulações de desconexão, timeout ou reconexão.
+- **PENDENTE DE EVIDÊNCIA — tipos não JSON:** não foi demonstrado que o esquema real contém apenas valores JSON simples. A clonagem por `JSON.stringify/JSON.parse` e o bloqueio de comparação para objetos não simples continuam sendo limitações a verificar contra o modelo efetivamente persistido.
+
+### Correção de isolamento nesta fase
+
+- Commit `fd71bd748fe3bc07c934328667072e63bab45e29` — `test: require explicit Firestore emulator isolation`.
+- O setup dos testes de integração agora exige `GCLOUD_PROJECT=demo-fluxo-casal-test` e `FIRESTORE_EMULATOR_HOST=127.0.0.1:8080`; se `FIREBASE_CONFIG` estiver presente, exige JSON válido e `projectId` igual ao projeto sintético. O objetivo é falhar fechado se o ambiente de teste não corresponder ao emulador configurado.
+- **PENDENTE DE EXECUÇÃO:** esta alteração foi inspecionada no conteúdo do commit, mas não foi executada localmente nem validada por uma execução observada do CI. Portanto, não se declara que a nova barreira já passou por testes.
+
+### Decisão da Fase 6.2
+
+**BLOQUEADA / PENDENTE DE EVIDÊNCIA.** A comparação da branch e a alteração de segurança foram verificadas pelo conteúdo do repositório, mas não há evidência suficiente para aprovar a suíte de integração, o build, o comportamento de falhas nem as regras efetivas de produção.
+
+Para desbloquear: obter uma execução observável do workflow na branch de auditoria com sucesso em instalação, testes unitários, Firestore Emulator, integração e build; corrigir qualquer falha; verificar as regras efetivas de produção por acesso administrativo somente de leitura; e testar os cenários offline/reconexão ou registrar limites específicos.
+
+### Integridade e escopo
+
+- Alterações feitas somente na branch `audit/protecao-dados-2026-10`.
+- Nenhuma alteração, merge ou publicação na `main`.
+- Nenhum deploy.
+- Nenhuma escrita, exclusão, migração ou restauração no Firebase de produção.
+- Nenhum dado financeiro real usado nos testes preparados.
+- A Fase 6.2 não autoriza iniciar restauração histórica nem qualquer operação de produção.
