@@ -55,11 +55,22 @@ service cloud.firestore {
 
 let env;
 before(async () => {
-  if (process.env.GCLOUD_PROJECT && process.env.GCLOUD_PROJECT !== PROJECT_ID) {
-    throw new Error(`Unexpected GCLOUD_PROJECT "${process.env.GCLOUD_PROJECT}". Refusing to run emulator tests.`);
+  if (process.env.GCLOUD_PROJECT !== PROJECT_ID) {
+    throw new Error(`Expected GCLOUD_PROJECT="${PROJECT_ID}", got "${process.env.GCLOUD_PROJECT || "(unset)"}". Refusing to run integration tests.`);
   }
-  if (process.env.FIREBASE_CONFIG && process.env.FIREBASE_CONFIG.includes("fluxo-de-caixa-59dd1")) {
-    throw new Error("Production Firebase config detected. Refusing to run integration tests.");
+  if (process.env.FIRESTORE_EMULATOR_HOST !== "127.0.0.1:8080") {
+    throw new Error(`Expected FIRESTORE_EMULATOR_HOST="127.0.0.1:8080", got "${process.env.FIRESTORE_EMULATOR_HOST || "(unset)"}". Refusing to run integration tests.`);
+  }
+  if (process.env.FIREBASE_CONFIG) {
+    let firebaseConfig;
+    try {
+      firebaseConfig = JSON.parse(process.env.FIREBASE_CONFIG);
+    } catch {
+      throw new Error("FIREBASE_CONFIG is not valid JSON. Refusing to run integration tests.");
+    }
+    if (firebaseConfig.projectId !== PROJECT_ID) {
+      throw new Error(`Unexpected FIREBASE_CONFIG projectId "${firebaseConfig.projectId || "(unset)"}". Refusing to run integration tests.`);
+    }
   }
   env = await initializeTestEnvironment({
     projectId: PROJECT_ID,
