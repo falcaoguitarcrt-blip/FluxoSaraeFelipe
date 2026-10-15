@@ -117,6 +117,85 @@ function normalizeNamedCatalog(list, prefix, fallback) {
   return out;
 }
 
+function addMonths(month, delta) {
+  const [year, mon] = String(month).split("-").map(Number);
+  const d = new Date(year, (mon || 1) - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function statementMonthForPurchase(purchaseDate, closingDay) {
+  const d = new Date(String(purchaseDate || "").slice(0, 10) + "T00:00:00");
+  if (Number.isNaN(d.getTime())) return null;
+  const day = d.getDate();
+  const base = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  return day > Math.max(1, Number(closingDay) || 1) ? addMonths(base, 1) : base;
+}
+
+function daysInMonth(month) {
+  const [year, mon] = String(month).split("-").map(Number);
+  return new Date(year, mon, 0).getDate();
+}
+
+function statementDueDate(month, dueDay) {
+  const day = Math.min(Math.max(1, Number(dueDay) || 10), daysInMonth(month));
+  return `${month}-${String(day).padStart(2, "0")}`;
+}
+
+function buildCardStatementTransactions(next, baseTransactions) {
+  const existingById = new Map((Array.isArray(baseTransactions) ? baseTransactions : []).map((t) => [t.id, t]));
+  const generated = [];
+  const aggregates = new Map();
+
+  (next.cards || []).filter((c) => c.active !== false && (c.profileKey === "p1" || c.profileKey === "p2")).forEach((card) => {
+    (next.cardPurchases || []).filter((p) => p.cardId === card.id).forEach((purchase) => {
+      const total = Number(purchase.totalAmount) || 0;
+      const installments = Math.max(1, Number(purchase.installments) || 1);
+      const baseValue = Math.floor((total / installments) * 100) / 100;
+      const firstMonth = statementMonthForPurchase(purchase.purchaseDate, card.closingDay);
+      if (!firstMonth || total <= 0) return;
+      for (let i = 0; i < installments; i++) {
+        const month = addMonths(firstMonth, i);
+        if (month < "2026-11") continue;
+        const value = i === installments - 1
+          ? Number((total - baseValue * (installments - 1)).toFixed(2))
+          : baseValue;
+        const key = `${card.id}-${month}`;
+        const current = aggregates.get(key) || { card, month, amount: 0 };
+        current.amount += value;
+        aggregates.set(key, current);
+      }
+    });
+  });
+
+  aggregates.forEach(({ card, month, amount }) => {
+    const id = `card-statement-${card.id}-${month}`;
+    const existing = existingById.get(id);
+    const paidByStatement = !!(next.paidStatements || {})[`${card.id}-${month}`];
+    const status = paidByStatement ? "paid" : (existing?.status === "paid" ? "paid" : "pending");
+    generated.push({
+      ...(existing || {}),
+      id,
+      profileKey: card.profileKey,
+      direction: "out",
+      description: `Cartão de Crédito • ${card.name}`,
+      category: "Fatura de Cartão",
+      categoryId: null,
+      amount: Number(amount.toFixed(2)),
+      date: statementDueDate(month, card.dueDay),
+      status,
+      bank: card.name || "Cartão de Crédito",
+      accountId: null,
+      cardId: card.id,
+      statementMonth: month,
+      isCardStatement: true,
+    });
+  });
+
+  const generatedIds = new Set(generated.map((t) => t.id));
+  const manual = (Array.isArray(baseTransactions) ? baseTransactions : []).filter((t) => !t.isCardStatement && !generatedIds.has(t.id));
+  return [...manual, ...generated];
+}
+
 export function migrateData(raw) {
   const base = raw && typeof raw === "object" ? raw : {};
   const next = { ...DEFAULT_STATE, ...base };
@@ -181,7 +260,8 @@ export function migrateData(raw) {
     return list.find((x) => x.name.toLowerCase() === n && (x.profileKey == null || x.profileKey === profileKey));
   };
 
-  next.transactions = (Array.isArray(base.transactions) ? base.transactions : []).map((t) => {
+  const manualTransactions = (Array.isArray(base.transactions) ? base.transactions : []).filter((t) => !t.isCardStatement);
+  next.transactions = manualTransactions.map((t) => {
     const profileKey = t.profileKey || next.profiles[0]?.key || "p1";
     const bankName = String(t.bank || "Carteira").trim() || "Carteira";
     const account = t.accountId ? accounts.find((a) => a.id === t.accountId) : ensureAccountFromBank(profileKey, bankName);
@@ -248,6 +328,7 @@ export function migrateData(raw) {
     return { ...g, profileKey, categoryId: cat.id, category: cat.name };
   });
 
+  next.transactions = buildCardStatementTransactions(next, next.transactions);
   return next;
 }
 
